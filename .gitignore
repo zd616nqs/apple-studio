@@ -1,0 +1,25 @@
+## macOS
+.DS_Store
+
+## Xcode / Tuist 生成物 —— manifest 是唯一工程真相,生成物一律不入库、不手改
+*.xcodeproj
+*.xcworkspace
+Derived/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+## SwiftPM / Tuist 依赖解析产物(Tuist/Package.resolved 要提交)
+.build/
+Tuist/.build/
+
+## Secrets:红线 5 —— 永不入库(agent 同时禁读禁写)
+Secrets/
+*.secrets.*
+
+## agent 三区模型:暂存区不入库
+.agents/scratch/
+
+## 本地个性化配置
+.mise.local.toml
+.claude/settings.local.json
