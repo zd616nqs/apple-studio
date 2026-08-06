@@ -12,4 +12,9 @@ struct NotesStore {
         notes.append(note)
         return true
     }
+
+    /// 按内容删除;不存在则无副作用
+    mutating func remove(_ note: String) {
+        notes.removeAll { $0 == note }
+    }
 }
