@@ -10,7 +10,8 @@
 4. OpenSpec:禁用 `/opsx:ff`(上游 OpenSpec 的快捷命令,本仓未安装且禁止安装使用——stale-specs bug);archive 在 feature 分支上执行、与代码合并动作绑定;未合并分支禁 `/opsx:sync`;行为变更必须回写 spec。
 5. >5MB 文件不入库(pre-commit 强制拦截)。Secrets 类文件对 agent 禁读禁写。
 6. 零全局状态:任何脚本 / agent 不得写 home 或系统目录配置(~/.claude/、~/.codex/ 等);一切配置只进本仓库。
-7. git:1 change = 1 branch,分支名 `change/<app>-<slug>`(`<app>` 全小写同 commit scope,`<slug>` kebab-case 动宾短语,如 `change/demonotes-delete-note`);conventional commits(`feat(demonotes): …`);solo 默认本地 rebase main → `merge --no-ff` → push(远端 PR 可选);tag 格式 `App-<Name>-1.1.3`,**只在真正发版时打,合并 ≠ 发版**。
+7. git:1 change = 1 branch,分支名 `change/<app>-<slug>`(`<app>` 全小写同 commit scope,`<slug>` kebab-case 动宾短语,如 `change/demonotes-delete-note`);conventional commits(`feat(demonotes): …`);solo 默认本地 rebase main → `merge --no-ff` → push,**合并后保留 change 分支**;tag 格式 `App-<Name>-1.1.3`,**只在真正发版时打,合并 ≠ 发版**。
+8. 产物落点:仓库根**禁止**新建文档/新开 openspec change——`openspec new` 在根目录会静默自建 root store(pre-commit 会拒绝其入库),必须 `(cd Apps/<App> && …)` 在 store 内执行;grill/brainstorm/调研等**未立项产物一律写 `.agents/scratch/`**(gitignored),立项后随 propose 迁入对应 store 的 change 容器。
 
 ## 变更路由(判断先于动手)
 

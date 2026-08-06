@@ -19,6 +19,17 @@ while IFS= read -r f; do
     fi
 done <<< "$staged"
 
+# 1b) 根目录 openspec/ 拒绝:根不是 store(openspec new 在无 store 目录会静默自建,这是污染主通道)
+root_openspec=$(echo "$staged" | grep '^openspec/' || true)
+if [ -n "$root_openspec" ]; then
+    {
+        echo "❌ pre-commit:仓库根目录不是 openspec store(红线 8)。change 请建到对应 store:"
+        echo "    (cd Apps/<App> && mise exec -- openspec new change <name>)"
+        echo "    误建的根 openspec/ 直接删除即可"
+    } >&2
+    fail=1
+fi
+
 # 2) 共享层警告:非 change/modules-* 分支改 Modules/(红线 3;警告不拦截)
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
 modules_touched=$(echo "$staged" | grep '^Modules/' || true)
