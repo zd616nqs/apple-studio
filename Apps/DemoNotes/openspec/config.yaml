@@ -11,6 +11,7 @@ rules:
     - 列出受影响的 app 与共享模块;涉及共享模块时,受影响 app 各开轻量 change 互链
     - 声明依赖图变更(新增 target/依赖边/三方库/capability 必须明示)
   specs:
+    - capability 目录名用 kebab-case 名词、与模块/功能名对齐(如 note-management),沿用已有 capability 的完整路径
     - 用 Given/When/Then 场景格式
   tasks:
     - 含 tuist generate + scripts/test-affected.sh 验证步骤 + 回滚说明

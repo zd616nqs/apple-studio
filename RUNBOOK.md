@@ -21,7 +21,7 @@ brew install mise        # 若 mise 不在
 | 只测受影响范围 | `./scripts/test-affected.sh`(`--list` 出 JSON) |
 | 工程文件变了(加文件/改依赖) | `mise exec -- tuist generate --no-open` |
 | OpenSpec 升级后 | `./scripts/openspec-update-all.sh` |
-| 看某 app 的行为文档/变更 | `(cd Apps/<App> && openspec status)` |
+| 看某 app 的行为文档/变更 | `(cd Apps/<App> && mise exec -- openspec status)` |
 
 ## 3. 开发一个变更(标准流程)
 
@@ -29,7 +29,7 @@ brew install mise        # 若 mise 不在
 2. 开分支 `change/<app>-<slug>`(共享层 = `change/modules-<slug>`)
 3. TDD 实现 → `./scripts/test-affected.sh` 绿
 4. 行为变更在**本分支**上 `/opsx:archive`(红线 4:禁 ff、未合并禁 sync)
-5. rebase main → merge --no-ff → 发版打 tag `App-<Name>-x.y.z`
+5. rebase main → merge --no-ff → push;**只在真正发版时**打 tag `App-<Name>-x.y.z`(日常合并不打)
 
 ## 4. 常见故障
 

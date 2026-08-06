@@ -14,7 +14,7 @@
 | 日常(只测受影响) | `./scripts/test-affected.sh` |
 | skill 集成(拿受影响清单) | `./scripts/test-affected.sh --list` |
 | 指定基准 | `./scripts/test-affected.sh --base <ref>` |
-| 单 app 全测 | `xcodebuild -workspace AppleStudio.xcworkspace -scheme <App> -destination 'platform=iOS Simulator,name=<iPhone>' test` |
+| 单 app 全测 | `xcodebuild -workspace AppleStudio.xcworkspace -scheme <App> -destination 'platform=iOS Simulator,name=<iPhone>' test`(设备名用 `xcrun simctl list devices available` 查;test-affected.sh 会自动挑,优先用它) |
 
 ## 已踩过的坑(实测,勿再踩)
 
