@@ -32,6 +32,7 @@
 | docs/standards/ | 结构/混编/依赖/测试四份规范 | 改代码前按需读对应篇 |
 | openspec(各 store) | 已合并行为的活文档 | 命令在 store 目录执行:`(cd Apps/<App> && mise exec -- openspec …)` |
 | RUNBOOK.md | 回归/换机/故障排查 | 三个月不碰后从这读起 |
+| .claude/skills/ | 仓库级 skills(经 .agents 软链双工具共读) | apple-api-lookup:Apple API 查询优先级(Xcode MCP > WebSearch > 三方) |
 | .agents/scratch/ | 暂存区(gitignored) | 未立项产物默认落此 |
 
 ## 脚本
