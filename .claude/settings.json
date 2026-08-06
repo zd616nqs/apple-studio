@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./Secrets/**)",
+      "Read(./**/Secrets/**)",
+      "Read(./**/Secrets*)",
+      "Read(./**/*.secrets.*)",
+      "Edit(./Secrets/**)",
+      "Edit(./**/Secrets/**)",
+      "Edit(./**/Secrets*)",
+      "Edit(./**/*.secrets.*)",
+      "Write(./Secrets/**)",
+      "Write(./**/Secrets/**)",
+      "Write(./**/Secrets*)",
+      "Write(./**/*.secrets.*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/shared-zone-guard.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

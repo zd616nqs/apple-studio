@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# 工具中立主防线:对 Claude / Codex / 人工提交一律生效(Claude hooks 管不到 Codex,门禁必须下沉到 git 层)。
+# 逃生通道:git commit --no-verify
+set -uo pipefail
+
+MAX_SIZE=$((5 * 1024 * 1024))
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+fail=0
+
+# 1) 大文件:>5MB 拒绝(红线 5)。量的是暂存 blob 而非工作区文件——两者可能不一致
+while IFS= read -r f; do
+    size=$(git cat-file -s ":$f" 2>/dev/null || echo 0)
+    if [ "$size" -gt "$MAX_SIZE" ]; then
+        echo "❌ pre-commit:$f 暂存内容为 $((size / 1024 / 1024))MB(>5MB),拒绝入库(红线 5)。大素材放仓库外。" >&2
+        fail=1
+    fi
+done <<< "$staged"
+
+# 2) 共享层警告:非 change/modules-* 分支改 Modules/(红线 3;警告不拦截)
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
+modules_touched=$(echo "$staged" | grep '^Modules/' || true)
+if [ -n "$modules_touched" ] && [[ "$branch" != change/modules-* ]]; then
+    {
+        echo "⚠️  pre-commit:分支 $branch 改动了共享层 Modules/(红线 3:应走 change/modules-* 分支):"
+        echo "$modules_touched" | sed 's/^/    /'
+    } >&2
+fi
+
+# 3) 混合提交警告:同一提交同时动 app 与共享区
+shared_touched=$(echo "$staged" | grep -E '^(Modules/|Tuist/|Workspace\.swift|scripts/|\.githooks/|\.claude/|CLAUDE\.md)' || true)
+apps_touched=$(echo "$staged" | grep '^Apps/' || true)
+if [ -n "$apps_touched" ] && [ -n "$shared_touched" ]; then
+    echo "⚠️  pre-commit:app 与共享区混在同一提交,建议拆开;共享区改动后必跑 scripts/build-all.sh" >&2
+fi
+
+# 4) 格式检查:staged Swift 文件过 swift-format lint(警告不拦截;逐文件调用,路径含空格安全)
+swift_staged=$(echo "$staged" | grep '\.swift$' || true)
+if [ -n "$swift_staged" ]; then
+    if xcrun --find swift-format >/dev/null 2>&1; then
+        while IFS= read -r f; do
+            xcrun swift-format lint "$f" 2>&1 || true
+        done <<< "$swift_staged" | head -20
+    else
+        echo "ℹ️  pre-commit:未找到 swift-format(随 Xcode 工具链提供),本次跳过格式检查" >&2
+    fi
+fi
+
+exit "$fail"
