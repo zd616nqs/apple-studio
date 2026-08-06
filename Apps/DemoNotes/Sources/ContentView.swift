@@ -21,6 +21,11 @@ struct ContentView: View {
                             TagChip("demo")
                         }
                     }
+                    .onDelete { offsets in
+                        for note in offsets.map({ store.notes[$0] }) {
+                            store.remove(note)
+                        }
+                    }
                 }
                 Section {
                     SnapKitBannerView(text: "SnapKit + Alamofire 已接线(见 PingRequestBuilder)")

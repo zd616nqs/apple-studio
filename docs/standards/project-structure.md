@@ -5,7 +5,8 @@
 1. `Apps/<Name>/Project.swift`:调 `Studio.app(name:destinations:dependencies:…)`
 2. 建约定目录:`Sources/`、`Resources/`(放 PrivacyInfo.xcprivacy,从 demo 复制)、`Tests/`
 3. 混编 app:`hasObjC: true` + 两个桥接头文件(`Sources/BridgingHeader.h`、`Tests/BridgingHeader.h`,可为空但必须存在)
-4. `(cd Apps/<Name> && openspec init --tools none)` 建行为文档 store,config.yaml 从 demo 复制改上下文
+4. `(cd Apps/<Name> && openspec init --tools none)` 建行为文档 store,config.yaml 从 demo 复制;
+   **rules/operations 段是仓库纪律(含红灯确认/断言冻结/archive 红线),复制后不可删减,只允许改 context 段**
 5. `mise exec -- tuist generate --no-open` → `./scripts/build-all.sh`
 
 ## 工厂约定(Tuist/ProjectDescriptionHelpers/Studio.swift)
