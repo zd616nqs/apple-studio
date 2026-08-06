@@ -19,6 +19,10 @@ rules:
     - 含 tuist generate + scripts/build-all.sh(全量构建)+ scripts/test-affected.sh(受影响测试)+ 回滚说明
 
 operations:
+  apply:
+    guidance:
+      - 红灯确认:每个新测试必须先以预期理由失败(非编译错误冒充的红),再写实现
+      - 断言冻结:实现阶段禁止修改已确认红的测试断言;需求变化必须先经 update-change 改 spec、用户确认后才能动测试
   archive:
     guidance:
       - archive 在 feature 分支上执行,与代码同 PR 合并;禁 /opsx:ff;未合并分支禁 /opsx:sync(红线 4)
