@@ -5,7 +5,8 @@ set -uo pipefail
 
 MAX_SIZE=$((5 * 1024 * 1024))
 
-staged=$(git diff --cached --name-only --diff-filter=ACMR)
+# core.quotepath=false:否则中文等非 ASCII 文件名被转义成 "\351..." 带引号形式,所有路径匹配全部失灵
+staged=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=ACMR)
 [ -z "$staged" ] && exit 0
 
 fail=0
@@ -31,7 +32,7 @@ if [ -n "$root_openspec" ]; then
 fi
 
 # 1c) 根目录新增 md 警告:grill/调研类产物应进 .agents/scratch/ 或 docs/(红线 8;警告不拦截)
-new_root_md=$(git diff --cached --name-only --diff-filter=A | grep -E '^[^/]+\.md$' | grep -vE '^(CLAUDE|AGENTS|RUNBOOK|README)\.md$' || true)
+new_root_md=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=A | grep -E '^[^/]+\.md$' | grep -vE '^(CLAUDE|AGENTS|RUNBOOK|README)\.md$' || true)
 if [ -n "$new_root_md" ]; then
     {
         echo "⚠️  pre-commit:仓库根新增文档(红线 8:未立项产物进 .agents/scratch/,长期文档进 docs/):"
