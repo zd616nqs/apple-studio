@@ -28,6 +28,7 @@
 | Modules/ | 共享层:伞形 Project、多 framework target | docs/standards/project-structure.md |
 | Tuist/ | Studio 工厂 + 全仓依赖声明 | Tuist/ProjectDescriptionHelpers/Studio.swift |
 | scripts/ | 全部自动化入口 | 下表 |
+| docs/onboarding.md | 新人手册(结构/流程/防线全景) | 首次接触从这读起 |
 | docs/adr/ | 生态级决策与已接受风险 | 0001-0005 首批 |
 | docs/standards/ | 结构/混编/依赖/测试四份规范 | 改代码前按需读对应篇 |
 | openspec(各 store) | 已合并行为的活文档 | `(cd Apps/<App> && mise exec -- openspec …)` |
