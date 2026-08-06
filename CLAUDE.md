@@ -23,12 +23,14 @@
 
 | 路径 | 内容 | 细则入口 |
 |---|---|---|
-| Apps/<Name>/ | 单个 app(业务只存在于此) | Apps/<Name>/CLAUDE.md |
-| Modules/ | 共享层:伞形 Project、多 framework target | (ticket 02 起) |
+| Apps/<Name>/ | 单个 app(业务只存在于此) | Apps/<Name>/CLAUDE.md + CONTEXT.md |
+| Modules/ | 共享层:伞形 Project、多 framework target | docs/standards/project-structure.md |
 | Tuist/ | Studio 工厂 + 全仓依赖声明 | Tuist/ProjectDescriptionHelpers/Studio.swift |
 | scripts/ | 全部自动化入口 | 下表 |
-| docs/ | ADR / 标准 / RUNBOOK | (ticket 07 起) |
-| openspec(各 store) | 已合并行为的活文档 | (ticket 06 起) |
+| docs/adr/ | 生态级决策与已接受风险 | 0001-0005 首批 |
+| docs/standards/ | 结构/混编/依赖/测试四份规范 | 改代码前按需读对应篇 |
+| openspec(各 store) | 已合并行为的活文档 | 命令在 store 目录执行:`(cd Apps/<App> && openspec …)` |
+| RUNBOOK.md | 回归/换机/故障排查 | 三个月不碰后从这读起 |
 | .agents/scratch/ | 暂存区(gitignored) | 未立项产物默认落此 |
 
 ## 脚本
@@ -38,6 +40,8 @@
 | scripts/bootstrap.sh | clone 后一条命令跑通环境(mise 钉版安装、git hooks、tuist install) |
 | scripts/build-all.sh | 生成 workspace 并构建全部 app(共享层改动后必跑) |
 | scripts/test-affected.sh | 只测受影响范围(diff 分类 + tuist graph 反查);`--list` 输出 JSON 供 skill 消费 |
+| scripts/openspec-update-all.sh | OpenSpec 升级后:重生成根工具文件 + 各 store 健康检查 |
+| scripts/beta-smoke.sh | beta Xcode 全量构建冒烟(非阻塞、一次性缓存) |
 
 ## 工具链
 
