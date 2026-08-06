@@ -4,7 +4,7 @@
 
 ## 红线(所有 agent、所有分支适用)
 
-1. 生成物不入库、不手改:.xcodeproj / .xcworkspace 由 Tuist 生成,唯一真相是 manifest(Project.swift / Workspace.swift / Tuist/)。
+1. 生成物不入库、不手改:.xcodeproj / .xcworkspace 由 Tuist 生成,唯一真相是 manifest(Project.swift / Workspace.swift / Tuist/)。明文例外:Tuist/Package.resolved 锁文件必须入库(单一版本策略的落地凭证)。
 2. 三方依赖只在 Tuist/Package.swift 声明(单一版本策略);app 和模块用 `.external(name:)` 引用,禁止绕过此文件私加依赖。
 3. 共享层(Modules/)改动只在 `change/modules-*` 分支进行;影响所有 app,提交前必跑 `scripts/build-all.sh`。
 4. OpenSpec:禁用 `/opsx:ff`(上游 stale-specs bug);archive 在 feature 分支上执行、与代码同 PR 合并;未合并分支禁 `/opsx:sync`;行为变更必须回写 spec。
