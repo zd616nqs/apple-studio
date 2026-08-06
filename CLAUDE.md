@@ -37,7 +37,7 @@
 |---|---|
 | scripts/bootstrap.sh | clone 后一条命令跑通环境(mise 钉版安装、git hooks、tuist install) |
 | scripts/build-all.sh | 生成 workspace 并构建全部 app(共享层改动后必跑) |
-| scripts/test-affected.sh | (ticket 05)只测受影响范围;`--list` 输出 JSON 供 skill 消费 |
+| scripts/test-affected.sh | 只测受影响范围(diff 分类 + tuist graph 反查);`--list` 输出 JSON 供 skill 消费 |
 
 ## 工具链
 
