@@ -29,7 +29,7 @@ brew install mise        # 若 mise 不在
 2. 开分支 `change/<app>-<slug>`(共享层 = `change/modules-<slug>`)
 3. TDD 实现 → `./scripts/test-affected.sh` 绿
 4. 行为变更在**本分支**上 `/opsx:archive`(红线 4:禁 ff、未合并禁 sync)
-5. rebase main → merge --no-ff → push;**只在真正发版时**打 tag `App-<Name>-x.y.z`(日常合并不打)
+5. rebase main → merge --no-ff → push;**合并后保留 change 分支**(本地+远端都留,不删);**只在真正发版时**打 tag `App-<Name>-x.y.z`(日常合并不打)
 
 ## 4. 常见故障
 
