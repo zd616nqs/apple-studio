@@ -1,0 +1,21 @@
+schema: spec-driven
+
+context: |
+  DemoNotes:纯 Swift / SwiftUI demo app(永久活范例),apple-studio Tuist monorepo 一员。
+  工程由 Apps/DemoNotes/Project.swift 经 Studio.app() 声明,禁止手改生成的 xcodeproj。
+  依赖:DesignKit(共享层,经 Studio.sharedModule)+ Alamofire + SnapKit(.external)。
+  标准见 /docs/standards/,术语见本目录 CONTEXT.md,仓库红线见根 CLAUDE.md。
+
+rules:
+  proposal:
+    - 列出受影响的 app 与共享模块;涉及共享模块时,受影响 app 各开轻量 change 互链
+    - 声明依赖图变更(新增 target/依赖边/三方库/capability 必须明示)
+  specs:
+    - 用 Given/When/Then 场景格式
+  tasks:
+    - 含 tuist generate + scripts/test-affected.sh 验证步骤 + 回滚说明
+
+operations:
+  archive:
+    guidance:
+      - archive 在 feature 分支上执行,与代码同 PR 合并;禁 /opsx:ff;未合并分支禁 /opsx:sync(红线 4)

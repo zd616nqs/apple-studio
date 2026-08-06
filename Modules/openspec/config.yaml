@@ -1,0 +1,23 @@
+schema: spec-driven
+
+context: |
+  Modules:apple-studio 共享层(伞形 Project,多 framework target,语言隔离)。
+  当前 target:FoundationKit / DesignKit(Swift 6)、LegacyCore(ObjC,nullability 门禁)。
+  改动影响所有依赖它的 app——这是本 store 与 app store 的本质区别。
+  工程由 Modules/Project.swift 经 Studio.module() 声明;新公开 ObjC 头必须同步进伞头文件。
+  标准见 /docs/standards/,红线见根 CLAUDE.md(红线 3:改动走 change/modules-* 分支)。
+
+rules:
+  proposal:
+    - 必须列出所有受影响 app(用 scripts/test-affected.sh --list 反查),并为每个受影响 app 开轻量 change 互链
+    - 声明依赖图变更(新增 target/依赖边/三方库/capability 必须明示)
+    - 公开 API 默认后向兼容(加新标废弃,不改签名);破坏性变更需在 proposal 里单独论证
+  specs:
+    - 用 Given/When/Then 场景格式
+  tasks:
+    - 含 tuist generate + scripts/build-all.sh(全量构建)+ scripts/test-affected.sh(受影响测试)+ 回滚说明
+
+operations:
+  archive:
+    guidance:
+      - archive 在 feature 分支上执行,与代码同 PR 合并;禁 /opsx:ff;未合并分支禁 /opsx:sync(红线 4)
