@@ -20,6 +20,18 @@ public enum Studio {
         .project(target: name, path: .relativeToRoot("Modules"))
     }
 
+    /// 在既有 OTHER_LDFLAGS(无论 string/array/未设置)上追加 -ObjC,绝不覆盖丢弃
+    private static func appendingObjCLinkerFlag(to current: SettingValue?) -> SettingValue {
+        switch current {
+        case .array(let flags):
+            return flags.contains("-ObjC") ? .array(flags) : .array(flags + ["-ObjC"])
+        case .string(let flags):
+            return flags.contains("-ObjC") ? .string(flags) : .array([flags, "-ObjC"])
+        default:
+            return .array(["$(inherited)", "-ObjC"])
+        }
+    }
+
     /// 只为 destinations 里实际存在的平台声明部署目标(声明多余平台会被 Tuist lint 拦下)
     private static func defaultDeploymentTargets(for destinations: Destinations) -> DeploymentTargets {
         let wantsIOS = !destinations.isDisjoint(with: [.iPhone, .iPad, .macCatalyst, .macWithiPadDesign])
@@ -57,8 +69,17 @@ public enum Studio {
         ]
         if hasObjC {
             baseSettings.merge(objcQualityGate) { _, gate in gate }
+            // app target 内混编约定:Swift 看本 target 的 ObjC 靠桥接头(固定路径);
+            // 消费共享 ObjC 模块仍走 module import,与桥接头无关
+            baseSettings["SWIFT_OBJC_BRIDGING_HEADER"] = "Sources/BridgingHeader.h"
         }
         baseSettings.merge(settings) { _, custom in custom }
+        if hasObjC {
+            // SPM 静态库里的 ObjC category 不被显式引用就会被 linker 丢弃,
+            // 缺 -ObjC 时编译全绿、运行期 unrecognized selector。
+            // 放在 custom merge 之后追加:app 自带 OTHER_LDFLAGS 也不许丢掉 -ObjC
+            baseSettings["OTHER_LDFLAGS"] = appendingObjCLinkerFlag(to: baseSettings["OTHER_LDFLAGS"])
+        }
 
         let appTarget = Target.target(
             name: name,
@@ -75,6 +96,11 @@ public enum Studio {
         )
 
         // 单元测试默认开(Swift Testing);UI 测试 opt-in
+        var testSettings: SettingsDictionary = ["SWIFT_VERSION": languageMode]
+        if hasObjC {
+            // 测试 target 经自己的桥接头看 app 内 ObjC 类(符号运行时由宿主 app 提供)
+            testSettings["SWIFT_OBJC_BRIDGING_HEADER"] = "Tests/BridgingHeader.h"
+        }
         let unitTests = Target.target(
             name: "\(name)Tests",
             destinations: destinations,
@@ -84,7 +110,7 @@ public enum Studio {
             infoPlist: .default,
             sources: ["Tests/**"],
             dependencies: [.target(name: name)],
-            settings: .settings(base: ["SWIFT_VERSION": languageMode])
+            settings: .settings(base: testSettings)
         )
 
         var uiTests: [Target] = []
