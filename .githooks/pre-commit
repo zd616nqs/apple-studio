@@ -30,6 +30,15 @@ if [ -n "$root_openspec" ]; then
     fail=1
 fi
 
+# 1c) 根目录新增 md 警告:grill/调研类产物应进 .agents/scratch/ 或 docs/(红线 8;警告不拦截)
+new_root_md=$(git diff --cached --name-only --diff-filter=A | grep -E '^[^/]+\.md$' | grep -vE '^(CLAUDE|AGENTS|RUNBOOK|README)\.md$' || true)
+if [ -n "$new_root_md" ]; then
+    {
+        echo "⚠️  pre-commit:仓库根新增文档(红线 8:未立项产物进 .agents/scratch/,长期文档进 docs/):"
+        echo "$new_root_md" | sed 's/^/    /'
+    } >&2
+fi
+
 # 2) 共享层警告:非 change/modules-* 分支改 Modules/(红线 3;警告不拦截)
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
 modules_touched=$(echo "$staged" | grep '^Modules/' || true)
