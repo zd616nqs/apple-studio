@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# commit-msg — 报告提交格式，并阻止没有应急原因的本地 main 提交。
+# 输入:Git 提交消息文件。输出:稳定规则 ID 诊断。
+# 失败语义:仅 GATE-DIRECT-MAIN 失败时非零；格式与非 main 原因质量是 Check。
+# 规则:GATE-DIRECT-MAIN、CHECK-COMMIT-FORMAT、CHECK-BREAK-GLASS-REASON。
+set -uo pipefail
+
+message_file="${1:?commit-msg 需要提交消息文件路径}"
+subject=$(sed -n '1p' "$message_file")
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
+fail=0
+
+if ! [[ "$subject" =~ ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?(!)?:[[:space:]]+.+$ ]]; then
+    echo "⚠️  CHECK-COMMIT-FORMAT:首行不符合 conventional commit:type(scope): summary" >&2
+fi
+
+has_break_glass=0
+has_non_empty_reason=0
+if grep -Eq '^Break-Glass:' "$message_file"; then
+    has_break_glass=1
+fi
+if grep -Eq '^Break-Glass:[[:space:]]*[^[:space:]].*$' "$message_file"; then
+    has_non_empty_reason=1
+fi
+
+if [ "$has_break_glass" -eq 1 ] && [ "$has_non_empty_reason" -eq 0 ]; then
+    echo "⚠️  CHECK-BREAK-GLASS-REASON:Break-Glass trailer 必须写具体原因" >&2
+fi
+
+if [ "$branch" = main ] && [ "$has_non_empty_reason" -eq 0 ]; then
+    {
+        echo "❌ GATE-DIRECT-MAIN:本地 main 提交需要非空应急 trailer"
+        echo "   正常路径:change branch → CI → merge"
+        echo "   应急格式:Break-Glass: <具体原因>"
+    } >&2
+    fail=1
+fi
+
+exit "$fail"
