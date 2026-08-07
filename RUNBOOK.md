@@ -32,6 +32,12 @@ scripts/build-all.sh
 | 验证某 store | `(cd Apps/<App> && mise exec -- openspec validate --all --strict --no-interactive)` |
 | beta Xcode 非阻塞冒烟 | `scripts/beta-smoke.sh [Xcode-beta.app]` |
 
+## Repo-change 规划入口
+
+`grill-with-docs` 是仓库外部提供的规划 skill，不是本仓库的规则副本或运行依赖。执行 `repo-change` 时，先用该 skill 澄清方案；未采纳的中间材料只放在 gitignored 的 `.agents/scratch/grill-with-docs/`，审核通过的难逆决策再写入 `docs/adr/`。
+
+如果当前 Agent 无法使用 `grill-with-docs`，只暂停 `repo-change` 的方案规划并向维护者说明缺失入口，请维护者提供该 skill 或明确授权替代的审议方式。不要自行安装、复制或在仓库根目录创建替代产物；这不影响 `direct`、`light-change` 和 `full-change` 的既有流程。
+
 ## Break-glass
 
 本地 hook 误报且工作不能等待时，在提交正文留下具体原因：
