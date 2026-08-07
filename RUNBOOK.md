@@ -48,6 +48,24 @@ git commit --no-verify -m "<conventional commit>" -m "Break-Glass: <具体原因
 
 `--no-verify` 会跳过本地 hook，所以可审计性来自提交 trailer。它不会改变远端 CI 结论；补跑命令由 `GATE-REQUIRED-VERIFICATION` 决定。
 
+## 远端 main 保护
+
+`zd616nqs/apple-studio` 的 `main` 使用 GitHub branch protection：变更必须经过 PR，分支必须保持最新，唯一 required status check 是稳定的 `gate`，管理员也受保护；force push 与分支删除关闭。条件式 `apple` 不是 required check。
+
+查看当前配置：
+
+```bash
+gh api repos/zd616nqs/apple-studio/branches/main/protection
+```
+
+回滚 `.github/workflows/ci.yml` 前必须先移除 required check，避免 main 等待一个已不存在的名称：
+
+```bash
+gh api --method DELETE repos/zd616nqs/apple-studio/branches/main/protection/required_status_checks
+```
+
+修复 workflow 后重新启用 `gate`。如果整个 PR 保护配置本身损坏，仓库管理员可把删除完整 protection 作为最后恢复手段；恢复期间停止日常合并，修复后按本节配置重新启用并复核。`Break-Glass:` 和 `--no-verify` 只作用于本地 Git hook，GitHub 不解释该 trailer，也不会因此跳过 PR 或 `gate`。
+
 ## 常见故障
 
 - `mise` 不存在：先执行 `brew install mise`，再运行 `scripts/bootstrap.sh`。
