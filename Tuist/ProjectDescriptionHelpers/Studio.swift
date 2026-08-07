@@ -8,7 +8,7 @@ public enum Studio {
     public static let macOSDeploymentTarget = "15.0"
     public static let bundleIDPrefix = "com.yourstudio"
 
-    /// 混编质量门禁(app 与共享模块共用一份,防两处漂移):
+    /// 混编质量检查(app 与共享模块共用一份,防两处漂移):
     /// nullability 不规范 —— 包括头文件整体缺注解 —— 直接编译失败,不靠自觉
     private static let objcQualityGate: SettingsDictionary = [
         "CLANG_WARN_NULLABLE_TO_NONNULL_CONVERSION": "YES_ERROR",
@@ -138,7 +138,7 @@ public enum Studio {
         case objc
     }
 
-    /// 共享层模块工厂(伞形结构:一个 Modules Project、多个 framework target)。
+    /// 共享层模块工厂(一个共享工程,集中声明多个 framework)。
     /// 语言隔离:ObjC 与 Swift 分 target,消费方走 module import 而非桥接头。
     public static func module(
         name: String,

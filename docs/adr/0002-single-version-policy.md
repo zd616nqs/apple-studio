@@ -6,7 +6,7 @@
 
 ## 决策
 
-- 全仓任意时刻只有一个版本的共享层与三方依赖(Tuist/Package.swift exact 钉版)
+- 全仓任意时刻只有一个版本的共享层与三方依赖(Tuist/Package.swift exact 锁定版本)
 - 发版 tag `App-<Name>-x.y.z` = 全树快照;"旧版本共存"由 git 提供:从 tag 拉 hotfix 分支
 - 共享层公开 API 默认后向兼容(加新标废弃,不改签名);破坏性变更一次迁完所有 app
 

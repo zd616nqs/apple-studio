@@ -6,12 +6,12 @@
 
 ## 决策
 
-Tuist 管 workspace/工程/依赖图,manifest 是唯一真相,生成物不入库。
+Tuist 管 workspace/工程/依赖图,manifest 是唯一事实来源,生成物不入库。
 SwiftPM(Tuist/Package.swift)管三方依赖。共享层用 Tuist 原生 target
 (支持单 target 混编,绕开 SPM SE-0403 单语言限制)。
 
 ## 后果
 
 - ✅ 新 app 分钟级;依赖图可查询(test-affected 反查);pbxproj 冲突消失
-- ⚠️ 接受 Tuist 升级跑步机(ADR-0005 风险 1);Xcode 大版本发布初期可能等 Tuist 适配
+- ⚠️ 接受 Tuist 升级追赶负担(ADR-0005 风险 1);Xcode 大版本发布初期可能等 Tuist 适配
 - ⚠️ 工厂(Studio.swift)成为单点约定,改动属共享区,走 change/modules-* 纪律

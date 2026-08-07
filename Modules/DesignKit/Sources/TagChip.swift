@@ -1,7 +1,7 @@
 import FoundationKit
 import SwiftUI
 
-/// 标签胶囊:DesignKit → FoundationKit 模块间依赖的活范例
+/// 标签胶囊:DesignKit → FoundationKit 模块间依赖的示例
 public struct TagChip: View {
     private let text: String
 

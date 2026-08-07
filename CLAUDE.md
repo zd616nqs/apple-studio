@@ -4,7 +4,7 @@
 
 ## 红线(所有 agent、所有分支适用)
 
-1. 生成物不入库、不手改:.xcodeproj / .xcworkspace 由 Tuist 生成,唯一真相是 manifest。明文例外:Tuist/Package.resolved 必须入库。
+1. 生成物不入库、不手改:.xcodeproj / .xcworkspace 由 Tuist 生成,唯一事实来源是声明文件(manifest)。明文例外:Tuist/Package.resolved 必须入库。
 2. 三方依赖只在 Tuist/Package.swift 声明(单一版本策略);app 和模块用 `.external(name:)` 引用,禁止私加依赖。
 3. 共享层(Modules/)改动只在 `change/modules-*` 分支进行;影响所有 app,提交前必跑 `scripts/build-all.sh`。
 4. OpenSpec:禁 `/opsx:ff`(本仓未装,禁止安装);archive 在 feature 分支上执行、与合并绑定;未合并分支禁 `/opsx:sync`;行为变更必须回写 spec。
@@ -25,7 +25,7 @@
 | 路径 | 内容 | 细则入口 |
 |---|---|---|
 | Apps/<Name>/ | 单个 app(业务只存在于此) | Apps/<Name>/CLAUDE.md + CONTEXT.md |
-| Modules/ | 共享层:伞形 Project、多 framework target | docs/standards/project-structure.md |
+| Modules/ | 共享层:一个共享工程,集中声明多个 framework | docs/standards/project-structure.md |
 | Tuist/ | Studio 工厂 + 全仓依赖声明 | Tuist/ProjectDescriptionHelpers/Studio.swift |
 | scripts/ | 全部自动化入口 | 下表 |
 | docs/onboarding.md | 新人手册(结构/流程/防线全景) | 首次接触从这读起 |
@@ -40,11 +40,11 @@
 
 | 脚本 | 用途 |
 |---|---|
-| scripts/bootstrap.sh | clone 后一条命令跑通环境 |
+| scripts/bootstrap.sh | clone 后一键完成环境配置 |
 | scripts/build-all.sh | 生成 + 构建全部 app(共享层改动后必跑) |
 | scripts/test-affected.sh | 只测受影响范围;`--list` 出 JSON 供 skill 消费 |
 | scripts/openspec-update-all.sh | OpenSpec 升级后刷新工具文件 + store 检查 |
-| scripts/beta-smoke.sh | beta Xcode 冒烟(非阻塞) |
+| scripts/beta-smoke.sh | beta Xcode 快速构建验证(不阻塞) |
 
 ## OpenSpec 入口(按客户端)
 
@@ -52,4 +52,4 @@ Claude = `/opsx:*` 命令;Codex = `$openspec-*` skills;其他客户端照 `.clau
 
 ## 工具链
 
-mise.toml 钉 Tuist / openspec,.xcode-version 钉 Xcode;升级走 change 分支 + build-all 全绿。
+mise.toml 锁定 Tuist / openspec 版本,.xcode-version 锁定 Xcode;升级走 change 分支 + build-all 全部通过。

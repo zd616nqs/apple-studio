@@ -28,7 +28,7 @@ struct ContentView: View {
                     }
                 }
                 Section {
-                    SnapKitBannerView(text: "SnapKit + Alamofire 已接线(见 PingRequestBuilder)")
+                    SnapKitBannerView(text: "SnapKit + Alamofire 已集成(见 PingRequestBuilder)")
                         .frame(height: 36)
                 }
             }

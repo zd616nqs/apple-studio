@@ -7,7 +7,7 @@
 ## 决策
 
 - 1 change = 1 branch = 1 PR,分支 `change/<app>-<slug>`;rebase main 后 merge --no-ff
-- worktree 仅作临时逃生舱:真需要同时开两个互相冲突的变更时手动开,用完即删
+- worktree 仅作应急手段:真需要同时开两个互相冲突的变更时手动开,用完即删
 - OpenSpec changes/ 目录天然按变更隔离,同分支串行开发冲突面已经很小
 
 ## 后果

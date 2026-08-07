@@ -1,4 +1,4 @@
-# 工具链钉版(唯一来源)。升级走 change 分支 + build-all 全绿后合并。
+# 工具链锁定版本(唯一来源)。升级走 change 分支 + build-all 全绿后合并。
 # Xcode 版本另见 .xcode-version。
 
 [tools]

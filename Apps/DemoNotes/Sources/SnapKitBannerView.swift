@@ -2,7 +2,7 @@ import SnapKit
 import SwiftUI
 import UIKit
 
-/// SnapKit 接线的活范例:SwiftUI 容器内用约束 DSL 摆 UIKit 视图
+/// SnapKit 集成示例:SwiftUI 容器内用约束 DSL 摆 UIKit 视图
 struct SnapKitBannerView: UIViewRepresentable {
     let text: String
 

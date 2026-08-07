@@ -1,6 +1,6 @@
-# DemoNotes — 纯 Swift 活范例
+# DemoNotes — 纯 Swift 示例工程
 
-定位:SwiftUI + 共享层 + Swift 三方库的标准姿势,新纯 Swift app 照抄这里。
+定位:SwiftUI + 共享层 + Swift 三方库的标准做法,新纯 Swift app 照抄这里。
 
 - 语言模式:Swift 6(严格并发)
 - 依赖:DesignKit(经 `Studio.sharedModule`)、Alamofire、SnapKit(`.external`)

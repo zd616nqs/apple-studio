@@ -1,10 +1,10 @@
 schema: spec-driven
 
 context: |
-  Modules:apple-studio 共享层(伞形 Project,多 framework target,语言隔离)。
-  当前 target:FoundationKit / DesignKit(Swift 6)、LegacyCore(ObjC,nullability 门禁)。
+  Modules:apple-studio 共享层(集中式 Project,多 framework target,语言隔离)。
+  当前 target:FoundationKit / DesignKit(Swift 6)、LegacyCore(ObjC,nullability 检查)。
   改动影响所有依赖它的 app——这是本 store 与 app store 的本质区别。
-  工程由 Modules/Project.swift 经 Studio.module() 声明;新公开 ObjC 头必须同步进伞头文件。
+  工程由 Modules/Project.swift 经 Studio.module() 声明;新公开 ObjC 头必须同步进同名总头文件。
   标准见 /docs/standards/,红线见根 CLAUDE.md(红线 3:改动走 change/modules-* 分支)。
 
 rules:

@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// 本 target ObjC 活范例:文字水印渲染(经 LegacyCore 清洗文本)
+/// 本 target ObjC 示例:文字水印渲染(经 LegacyCore 清洗文本)
 @interface PMWatermarkRenderer : NSObject
 
 /// 经共享层 LGCStringSanitizer 清洗后的水印文本
