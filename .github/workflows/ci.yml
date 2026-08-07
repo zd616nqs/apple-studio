@@ -52,8 +52,8 @@ jobs:
 
   apple:
     name: apple
-    needs: classify
-    if: ${{ needs.classify.outputs.apple_required == 'true' }}
+    needs: [classify, static]
+    if: ${{ needs.classify.outputs.apple_required == 'true' && needs.static.result == 'success' }}
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v6

@@ -119,6 +119,7 @@ expect_workflow_text "workflow triggers on pull requests" '^  pull_request:'
 expect_workflow_text "workflow exposes stable gate job" '^  gate:'
 expect_workflow_text "gate uses always condition" '^    if: \$\{\{ always\(\) \}\}$'
 expect_workflow_text "static job runs portable doctor" 'scripts/repo-doctor\.sh --static'
+expect_workflow_text "Apple waits for successful static gates" '^    needs: \[classify, static\]$'
 if grep -Eq '^  (schedule|workflow_dispatch):' "$WORKFLOW"; then
     fail "PR workflow does not claim scheduled regression"
 else
