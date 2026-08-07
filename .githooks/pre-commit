@@ -1,63 +1,85 @@
 #!/usr/bin/env bash
-# 工具中立主防线:对 Claude / Codex / 人工提交一律生效(Claude hooks 管不到 Codex,门禁必须下沉到 git 层)。
-# 逃生通道:git commit --no-verify
+#
+# pre-commit — 每次 git commit 前自动运行的提交检查
+#
+# 【为什么放在 git 层】
+# 本仓库由多个 AI 助手(Claude / Codex / 其他)和人共同提交代码。
+# 各家助手的自身约束互不通用,唯一对"所有提交者"都生效的位置就是 git 钩子——
+# 所以最重要的检查都放在这里,而不是依赖某个助手自己的配置。
+# (钩子经 scripts/bootstrap.sh 的 git config core.hooksPath 启用)
+#
+# 【检查清单】
+#   1  大文件拦截(拒绝):超过 5MB 的文件不允许进入仓库,防止仓库被素材撑爆
+#   1b 根目录 openspec/ 拦截(拒绝):变更文档必须建在各 app 自己的目录里
+#   1c 根目录新文档提醒(警告):调研草稿应放 .agents/scratch/,长期文档应放 docs/
+#   2  共享层分支提醒(警告):改 Modules/ 应该在 change/modules-* 分支上做
+#   3  混合提交提醒(警告):app 代码和共享代码最好分开提交,方便回退和审查
+#   4  Swift 格式检查(警告):用 Xcode 自带的 swift-format,规则见根目录 .swift-format
+#
+# 【应急通道】
+# 确认是误报时,可用 git commit --no-verify 跳过本钩子,事后再补救。
+#
 set -uo pipefail
 
 MAX_SIZE=$((5 * 1024 * 1024))
 
-# core.quotepath=false:否则中文等非 ASCII 文件名被转义成 "\351..." 带引号形式,所有路径匹配全部失灵
+# core.quotepath=false:git 默认会把中文等非 ASCII 文件名转义成 "\351..." 的带引号形式,
+# 那样下面所有按文件名匹配的检查都会失效(实测:中文名的大文件能因此绕过拦截)
 staged=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=ACMR)
 [ -z "$staged" ] && exit 0
 
 fail=0
 
-# 1) 大文件:>5MB 拒绝(红线 5)。量的是暂存 blob 而非工作区文件——两者可能不一致
+# 1) 大文件拦截。注意量的是"暂存区里的内容"而不是磁盘上的文件——
+#    两者可能不一致(先 add 大文件、再缩小磁盘上的副本,就能骗过按磁盘文件测量的检查)
 while IFS= read -r f; do
     size=$(git cat-file -s ":$f" 2>/dev/null || echo 0)
     if [ "$size" -gt "$MAX_SIZE" ]; then
-        echo "❌ pre-commit:$f 暂存内容为 $((size / 1024 / 1024))MB(>5MB),拒绝入库(红线 5)。大素材放仓库外。" >&2
+        echo "❌ pre-commit:$f 暂存内容为 $((size / 1024 / 1024))MB(>5MB),拒绝入库(红线 5)。大素材请放在仓库之外。" >&2
         fail=1
     fi
 done <<< "$staged"
 
-# 1b) 根目录 openspec/ 拒绝:根不是 store(openspec new 在无 store 目录会静默自建,这是污染主通道)
+# 1b) 根目录 openspec/ 拦截。openspec new 在没有工作区的目录会静默新建一个,
+#     根目录一旦出现 openspec/ 就会抢走命令的定位,变更文档从此写错地方——必须拒之门外
 root_openspec=$(echo "$staged" | grep '^openspec/' || true)
 if [ -n "$root_openspec" ]; then
     {
-        echo "❌ pre-commit:仓库根目录不是 openspec store(红线 8)。change 请建到对应 store:"
+        echo "❌ pre-commit:仓库根目录不是 openspec 工作区(红线 8)。变更请建到对应目录:"
         echo "    (cd Apps/<App> && mise exec -- openspec new change <name>)"
-        echo "    误建的根 openspec/ 直接删除即可"
+        echo "    误建的根目录 openspec/ 直接删除即可"
     } >&2
     fail=1
 fi
 
-# 1c) 根目录新增 md 警告:grill/调研类产物应进 .agents/scratch/ 或 docs/(红线 8;警告不拦截)
+# 1c) 根目录新增文档提醒。白名单里的四个文件是根目录的正当居民,其余多半是放错了位置
 new_root_md=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=A | grep -E '^[^/]+\.md$' | grep -vE '^(CLAUDE|AGENTS|RUNBOOK|README)\.md$' || true)
 if [ -n "$new_root_md" ]; then
     {
-        echo "⚠️  pre-commit:仓库根新增文档(红线 8:未立项产物进 .agents/scratch/,长期文档进 docs/):"
+        echo "⚠️  pre-commit:仓库根新增了文档(红线 8:调研草稿放 .agents/scratch/,长期文档放 docs/):"
         echo "$new_root_md" | sed 's/^/    /'
     } >&2
 fi
 
-# 2) 共享层警告:非 change/modules-* 分支改 Modules/(红线 3;警告不拦截)
+# 2) 共享层分支提醒。Modules/ 的改动影响所有 app,约定在 change/modules-* 分支上做,
+#    这里只提醒不拦截(比如版本升级这类跨领域改动会正当地触碰它)
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
 modules_touched=$(echo "$staged" | grep '^Modules/' || true)
 if [ -n "$modules_touched" ] && [[ "$branch" != change/modules-* ]]; then
     {
-        echo "⚠️  pre-commit:分支 $branch 改动了共享层 Modules/(红线 3:应走 change/modules-* 分支):"
+        echo "⚠️  pre-commit:分支 $branch 改动了共享层 Modules/(红线 3:应在 change/modules-* 分支上做):"
         echo "$modules_touched" | sed 's/^/    /'
     } >&2
 fi
 
-# 3) 混合提交警告:同一提交同时动 app 与共享区
+# 3) 混合提交提醒。一次提交同时动 app 和共享区,回退时会互相牵连,建议拆开
 shared_touched=$(echo "$staged" | grep -E '^(Modules/|Tuist/|Workspace\.swift|scripts/|\.githooks/|\.claude/|CLAUDE\.md)' || true)
 apps_touched=$(echo "$staged" | grep '^Apps/' || true)
 if [ -n "$apps_touched" ] && [ -n "$shared_touched" ]; then
-    echo "⚠️  pre-commit:app 与共享区混在同一提交,建议拆开;共享区改动后必跑 scripts/build-all.sh" >&2
+    echo "⚠️  pre-commit:app 与共享区混在同一提交,建议拆开;共享区改动后请运行 scripts/build-all.sh" >&2
 fi
 
-# 4) 格式检查:staged Swift 文件过 swift-format lint(警告不拦截;逐文件调用,路径含空格安全)
+# 4) Swift 格式检查(逐个文件调用,文件名带空格也安全;只提醒不拦截)
 swift_staged=$(echo "$staged" | grep '\.swift$' || true)
 if [ -n "$swift_staged" ]; then
     if xcrun --find swift-format >/dev/null 2>&1; then

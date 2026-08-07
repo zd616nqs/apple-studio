@@ -1,11 +1,31 @@
 #!/usr/bin/env bash
-# 只测受影响范围:git diff 分类 → tuist graph 反查 → 逐 app 跑测试。
-# 用法:
-#   scripts/test-affected.sh              # 跑受影响 app 的测试(无受影响则直接绿)
-#   scripts/test-affected.sh --list       # 只输出受影响范围 JSON(供 review/tdd 类 skill 消费)
-#   scripts/test-affected.sh --base <ref> # 显式指定 diff 基准
-# 默认基准:main 上 = 未提交改动;其他分支 = merge-base(main, HEAD) 起 + 未提交改动。
-# 分类规则(蓝图 §3.5):Apps/X→X;Modules/M→依赖图反查;Modules 根/Tuist/Workspace/工具链钉版→全部。
+#
+# test-affected.sh — 只对"受本次改动影响的 app"跑测试
+#
+# 【为什么需要这个脚本】
+# monorepo 里 app 会越来越多,每次改动都全量跑所有测试太慢。
+# 但"我改的这个文件影响了哪些 app"靠人脑判断又容易漏——尤其是改共享层时。
+# 这个脚本把判断交给依赖图:改动文件 → 归类 → 用 Tuist 的依赖图反查
+# → 得出受影响的 app 清单 → 只对它们跑测试。
+# 改共享模块会自动带出所有依赖它的 app(含间接依赖),改单个 app 则只测它自己。
+#
+# 【用法】
+#   scripts/test-affected.sh              对受影响的 app 跑测试(无受影响则直接通过)
+#   scripts/test-affected.sh --list       只输出受影响范围的 JSON,不跑测试
+#                                         (给其他自动化工具/skill 提供数据)
+#   scripts/test-affected.sh --base <ref> 显式指定比较基准(默认见下)
+#
+# 【改动范围怎么算】
+#   在 main 分支上:未提交的改动(含新建但未跟踪的文件——否则新写的测试文件会被漏掉)
+#   在其他分支上:分支与 main 的分叉点之后的全部提交 + 未提交改动
+#
+# 【文件怎么归类】(与蓝图约定一致)
+#   Apps/X/ 下的文件            → 影响 app X
+#   Modules/M/ 下的文件         → 用依赖图反查哪些 app 依赖模块 M(含间接依赖)
+#   Modules 顶层 / Tuist/ /
+#   Workspace.swift / 版本锁定文件 → 影响全部 app(工程结构或工具链变了,谁都跑不掉)
+#   其余(文档、流程配置、脚本)   → 不影响 app 构建产物,不触发测试
+#
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -28,9 +48,10 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# 三个依赖:mise 管工具版本,jq 解析 JSON,python3 做依赖图运算
 for tool in mise jq python3; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "❌ 缺少 $tool(mise 用 scripts/bootstrap.sh 装;jq/python3 随 macOS/CLT 提供)" >&2
+        echo "❌ 缺少 $tool(mise 用 scripts/bootstrap.sh 安装;jq/python3 随 macOS 开发工具提供)" >&2
         exit 1
     fi
 done
@@ -54,17 +75,19 @@ if [ -z "$changed" ]; then
     if [ "$MODE" = "list" ]; then
         printf '{"branch":"%s","changed":[],"affected_apps":[],"affected_modules":[],"trigger_all":null}\n' "$branch"
     else
-        echo "✅ test-affected:无变更文件,无需测试"
+        echo "✅ test-affected:没有改动文件,无需测试"
     fi
     exit 0
 fi
 
+# 让 Tuist 导出当前依赖图(JSON),后面用它反查"模块 → 依赖它的 app"
 graph_dir=$(mktemp -d)
 trap 'rm -rf "$graph_dir"' EXIT
-# stderr 不吞:graph 失败(如未 tuist install)时 set -e 中止,错误必须可见
+# 标准错误不做静音:依赖图导出失败(比如还没运行 tuist install)时,错误必须能被看见
 mise exec -- tuist graph -f json -o "$graph_dir" >/dev/null
 
-# 注意:python3 - 的程序体走 stdin(heredoc),数据只能走环境变量,不能再用管道
+# 说明:python3 - 的脚本正文占用了标准输入(heredoc),
+# 所以改动文件清单只能通过环境变量传进去,不能再用管道
 result=$(CHANGED="$changed" python3 - "$graph_dir/graph.json" "$branch" <<'PY'
 import json
 import os
@@ -76,7 +99,9 @@ changed = [line.strip() for line in os.environ.get("CHANGED", "").splitlines() i
 with open(graph_path) as f:
     data = json.load(f)
 
-# dependencies 是键值交替的数组:{target 描述}, [它的依赖], {target}, [依赖] …
+# Tuist 导出的 dependencies 是"键值交替"的数组:
+# {目标 A 的描述}, [A 的依赖列表], {目标 B 的描述}, [B 的依赖列表] …
+# 这里把它整理成普通的邻接表
 deps = data.get("dependencies", [])
 adj = {}
 
@@ -100,6 +125,7 @@ all_apps = sorted(
 )
 
 
+# 从某个 app 出发,沿依赖边一路走到底,收集它直接和间接依赖的全部目标
 def closure(app):
     start = [k for k in adj if k[0] == app and k[1].endswith(f"/Apps/{app}")]
     seen, queue = set(start), list(start)
@@ -115,6 +141,7 @@ def closure(app):
 app_closures = {app: closure(app) for app in all_apps}
 
 
+# 反查:哪些 app 的依赖集合里含有指定的共享模块
 def apps_depending_on_module(module):
     return [
         app
@@ -135,10 +162,10 @@ for f in changed:
         if len(parts) >= 3:
             affected_modules.add(parts[1])
         else:
-            trigger_all = f  # Modules 根(如 Project.swift)→ 全部
+            trigger_all = f  # Modules 顶层文件(如 Project.swift)变了 → 所有 app 都受影响
     elif f.startswith("Tuist/") or f in ("Workspace.swift", "mise.toml", ".xcode-version"):
         trigger_all = f
-    # 其余(docs/.claude/.githooks/CLAUDE.md/openspec/scripts)不影响 app 构建产物
+    # 其余文件(文档、.claude、.githooks、CLAUDE.md、openspec、scripts)不影响 app 构建产物
 
 if trigger_all:
     affected = set(all_apps)
@@ -168,10 +195,11 @@ fi
 
 apps=$(echo "$result" | jq -r '.affected_apps[]')
 if [ -z "$apps" ]; then
-    echo "✅ test-affected:变更不影响任何 app,无需测试"
+    echo "✅ test-affected:改动不影响任何 app,无需测试"
     exit 0
 fi
 
+# 跑测试需要一台具体的模拟器,从可用设备里选第一台 iPhone
 sim=$(xcrun simctl list devices available -j | python3 -c '
 import json, sys
 data = json.load(sys.stdin)
@@ -179,7 +207,7 @@ names = [d["name"] for devs in data["devices"].values() for d in devs if d["name
 print(names[0] if names else "")
 ')
 if [ -z "$sim" ]; then
-    echo "❌ 找不到可用 iPhone 模拟器" >&2
+    echo "❌ 找不到可用的 iPhone 模拟器" >&2
     exit 1
 fi
 
@@ -197,4 +225,4 @@ done
 if [ "$fail" -ne 0 ]; then
     exit 1
 fi
-echo "✅ test-affected 全绿:$(echo "$apps" | tr '\n' ' ')"
+echo "✅ test-affected 全部通过:$(echo "$apps" | tr '\n' ' ')"
