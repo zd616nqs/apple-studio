@@ -14,18 +14,5 @@
       "Write(./**/Secrets*)",
       "Write(./**/*.secrets.*)"
     ]
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/shared-zone-guard.sh"
-          }
-        ]
-      }
-    ]
   }
 }

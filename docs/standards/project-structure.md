@@ -1,66 +1,42 @@
-# 工程结构规范
+# 工程结构标准
 
-本文说明:这个仓库的工程是怎么组织的,新建一个 app 要做哪几步,共享代码放在哪里。
+Tuist manifest 是工程结构的可读来源。`Workspace.swift` 组合项目，App/Modules 的 `Project.swift` 声明 target，`Tuist/ProjectDescriptionHelpers/Studio.swift` 提供共享工厂。生成的 Xcode project/workspace 只是可重建输出。
 
-## 背景:为什么工程文件是"声明"出来的
+## App 目录
 
-传统 iOS 项目直接维护 .xcodeproj 文件,但它格式复杂、合并冲突频繁,AI 助手改起来极易出错。
-本仓库改用 Tuist:每个 app 只写一份简短的 `Project.swift` 声明"我叫什么、依赖什么",
-Xcode 工程由 `tuist generate` 现场生成。生成出来的 .xcodeproj / .xcworkspace 不进入版本管理,
-也永远不要手工编辑——要改工程结构,改的是声明文件。
+```text
+Apps/<Name>/
+├── CONTEXT.md
+├── Project.swift
+├── Sources/
+├── Resources/
+├── Tests/
+└── openspec/
+```
 
-声明时不需要从零写配置:仓库提供了一个工厂
-(`Tuist/ProjectDescriptionHelpers/Studio.swift`),把 bundle ID 前缀、系统版本要求、
-测试配置这些全仓统一的约定都内置了,新 app 只需要"调用工厂 + 填空"。
+`Studio.app(...)` 读取 `Sources/**`、`Resources/**` 和 `Tests/**`。混编 App 通过 `hasObjC: true` 启用桥接头约定；具体路径见 `objc-swift-interop.md`。App 领域术语放 `CONTEXT.md`，target/依赖事实留在 `Project.swift`。
 
-## 新建一个 app(五步)
+新增 App 时：
 
-1. 新建 `Apps/<名字>/Project.swift`,内容就是调用一次工厂:
-   `Studio.app(name: "...", destinations: ..., dependencies: [...])`
-2. 按约定建目录:`Sources/`(代码)、`Resources/`(资源,把 PrivacyInfo.xcprivacy
-   从示例 app 复制过来)、`Tests/`(测试)。目录名是固定约定,工厂按这些路径找文件
-3. 如果是 Swift 和 Objective-C 混编的 app:工厂参数加 `hasObjC: true`,
-   并创建两个桥接头文件 `Sources/BridgingHeader.h`、`Tests/BridgingHeader.h`
-   (即使暂时是空的也必须存在,详见混编规范)
-4. 建行为文档工作区:`(cd Apps/<名字> && mise exec -- openspec init --tools none)`,
-   然后把 config.yaml 从示例 app 复制过来。**注意:config 里 rules 和 operations
-   两段是全仓库统一的纪律,复制后不可删减,只允许改 context 段**(介绍本 app 的部分)
-5. 运行 `mise exec -- tuist generate --no-open`,再跑 `./scripts/build-all.sh` 确认能构建
+1. 从匹配语言模式的 Demo App 复制目录骨架，再改名称、bundle ID、依赖和资源。
+2. 在 `Workspace.swift` 注册 App 路径。
+3. 初始化产品 OpenSpec store，并按 `GOVERNANCE.md` 建立两套 schema 的相对入口；config 只写该 App 上下文与 archive 规则 ID 指针。
+4. 运行 OpenSpec schema/content validation、Tuist generate、全量 build 和新 App 测试。
 
-两个示例 app 就是模板:纯 Swift 的照抄 DemoNotes,混编的照抄 DemoPhotoMark。
+当前 factory 只证明 `GOVERNANCE.md` 中的 verified 范围；committed 平台/产品目标在拥有 factory、示例、构建和测试前不作为模板使用。
 
-## 工厂的固定约定
+## Modules 目录
 
-- 目录即约定:`Sources/**`、`Resources/**`、`Tests/**` 路径固定,不接受自定义
-- 依赖共享模块只写 `Studio.sharedModule("模块名")`,不要自己拼相对路径
-- 依赖第三方库只写 `.external(name: "库名")`,库的版本统一声明在 Tuist/Package.swift
-- 系统版本要求:iOS 18 / macOS 15 起(全仓常量);个别 app 有特殊需求时用
-  `deploymentTargets:` 参数覆盖
-- 单元测试目标默认自动生成;UI 测试默认不生成,需要时加 `includeUITests: true`
+`Modules/Project.swift` 集中声明多个 framework。Swift 与 Objective-C 使用独立 target，通过 module import 组合，避免共享层桥接头。
 
-## 共享层(Modules/)怎么组织
+把能力提取到 Modules 前，先确认至少有第二个真实使用方。新增模块时同时考虑：
 
-Modules/ 是一个共享工程,里面放多个 framework,当前有三个:
+- public API 与访问控制；
+- 资源 bundle 和依赖方向；
+- Objective-C umbrella header；
+- Swift 语言模式和并发边界；
+- 所有依赖 App 的构建与测试影响。
 
-- FoundationKit / DesignKit:Swift 编写(Swift 6 语言模式)
-- LegacyCore:Objective-C 编写
+## 工厂扩展
 
-组织原则:
-
-- **Swift 和 Objective-C 分开建 framework**,不在共享层混在一个目标里
-  ——使用方通过 `import 模块名` 引用,干净且不需要桥接头
-- **第二次需要才抽共享**:某段代码只有一个 app 用时就留在那个 app 里,
-  第二个 app 也需要时才提取到 Modules/(避免过早抽象)
-- 新增共享模块 = 在 `Modules/Project.swift` 里加一行 `Studio.module(name:lang:)`
-  + 建源码目录
-- Objective-C 模块必须有一个与模块同名的头文件(如 LegacyCore.h),
-  模块的每个公开头文件都要手工 `#import` 进去——Swift 侧能否 import 这个模块,
-  取决于这个总头文件(细节见混编规范)
-
-## 改共享层的纪律
-
-共享层被所有 app 依赖,改动要格外小心:
-
-- 在专门的分支上做(分支名以 `change/modules-` 开头)
-- 提交前运行 `./scripts/build-all.sh`,确认所有 app 依然能构建
-- 公开接口尽量向后兼容:加新接口、标记旧接口废弃,而不是直接改签名删方法
+新增平台或产品 target 使用明确 factory，保留平台差异，不提供吞掉所有参数的通用 `extension()`。一个支持状态升级到 verified 的证据集合是：factory、仓库内示例、可重复构建和测试。

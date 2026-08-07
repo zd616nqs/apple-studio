@@ -1,23 +1,10 @@
 #!/usr/bin/env bash
 #
-# pre-commit — 每次 git commit 前自动运行的提交检查
-#
-# 【为什么放在 git 层】
-# 本仓库由多个 AI 助手(Claude / Codex / 其他)和人共同提交代码。
-# 各家助手的自身约束互不通用,唯一对"所有提交者"都生效的位置就是 git 钩子——
-# 所以最重要的检查都放在这里,而不是依赖某个助手自己的配置。
-# (钩子经 scripts/bootstrap.sh 的 git config core.hooksPath 启用)
-#
-# 【检查清单】
-#   1  大文件拦截(拒绝):超过 5MB 的文件不允许进入仓库,防止仓库被素材撑爆
-#   1b 根目录 openspec/ 拦截(拒绝):变更文档必须建在各 app 自己的目录里
-#   1c 根目录新文档提醒(警告):调研草稿应放 .agents/scratch/,长期文档应放 docs/
-#   2  共享层分支提醒(警告):改 Modules/ 应该在 change/modules-* 分支上做
-#   3  混合提交提醒(警告):app 代码和共享代码最好分开提交,方便回退和审查
-#   4  Swift 格式检查(警告):用 Xcode 自带的 swift-format,规则见根目录 .swift-format
-#
-# 【应急通道】
-# 确认是误报时,可用 git commit --no-verify 跳过本钩子,事后再补救。
+# pre-commit — 对 staged 内容执行快速、确定性的 Gate 与 Check。
+# 输入:Git index。输出:带规则 ID 的诊断。
+# 失败语义:Gate 失败时非零；Check 只报告。本地可 --no-verify，CI 不受影响。
+# 规则:GATE-LARGE-FILES、GATE-ROOT-ALLOWLIST、CHECK-BRANCH-NAME、
+# CHECK-CHANGE-TIER、CHECK-SWIFT-FORMAT（完整 Gate 集合由 repo-doctor/CI 覆盖）。
 #
 set -uo pipefail
 
@@ -35,7 +22,7 @@ fail=0
 while IFS= read -r f; do
     size=$(git cat-file -s ":$f" 2>/dev/null || echo 0)
     if [ "$size" -gt "$MAX_SIZE" ]; then
-        echo "❌ pre-commit:$f 暂存内容为 $((size / 1024 / 1024))MB(>5MB),拒绝入库(红线 5)。大素材请放在仓库之外。" >&2
+        echo "❌ GATE-LARGE-FILES:$f 暂存内容为 $((size / 1024 / 1024))MB(>5 MiB)" >&2
         fail=1
     fi
 done <<< "$staged"
@@ -45,20 +32,11 @@ done <<< "$staged"
 root_openspec=$(echo "$staged" | grep '^openspec/' || true)
 if [ -n "$root_openspec" ]; then
     {
-        echo "❌ pre-commit:仓库根目录不是 openspec 工作区(红线 8)。变更请建到对应目录:"
+        echo "❌ GATE-ROOT-ALLOWLIST:仓库根目录不创建 openspec store。变更请建到对应目录:"
         echo "    (cd Apps/<App> && mise exec -- openspec new change <name>)"
         echo "    误建的根目录 openspec/ 直接删除即可"
     } >&2
     fail=1
-fi
-
-# 1c) 根目录新增文档提醒。白名单里的四个文件是根目录的正当居民,其余多半是放错了位置
-new_root_md=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=A | grep -E '^[^/]+\.md$' | grep -vE '^(CLAUDE|AGENTS|RUNBOOK|README)\.md$' || true)
-if [ -n "$new_root_md" ]; then
-    {
-        echo "⚠️  pre-commit:仓库根新增了文档(红线 8:调研草稿放 .agents/scratch/,长期文档放 docs/):"
-        echo "$new_root_md" | sed 's/^/    /'
-    } >&2
 fi
 
 # 2) 共享层分支提醒。Modules/ 的改动影响所有 app,约定在 change/modules-* 分支上做,
@@ -67,7 +45,7 @@ branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
 modules_touched=$(echo "$staged" | grep '^Modules/' || true)
 if [ -n "$modules_touched" ] && [[ "$branch" != change/modules-* ]]; then
     {
-        echo "⚠️  pre-commit:分支 $branch 改动了共享层 Modules/(红线 3:应在 change/modules-* 分支上做):"
+        echo "⚠️  CHECK-BRANCH-NAME:分支 $branch 的 scope 可能与 Modules/ 改动不匹配:"
         echo "$modules_touched" | sed 's/^/    /'
     } >&2
 fi
@@ -76,7 +54,7 @@ fi
 shared_touched=$(echo "$staged" | grep -E '^(Modules/|Tuist/|Workspace\.swift|scripts/|\.githooks/|\.claude/|CLAUDE\.md)' || true)
 apps_touched=$(echo "$staged" | grep '^Apps/' || true)
 if [ -n "$apps_touched" ] && [ -n "$shared_touched" ]; then
-    echo "⚠️  pre-commit:app 与共享区混在同一提交,建议拆开;共享区改动后请运行 scripts/build-all.sh" >&2
+    echo "⚠️  CHECK-CHANGE-TIER:同一提交包含 App 与共享区，请复核变更等级和验证范围" >&2
 fi
 
 # 4) Swift 格式检查(逐个文件调用,文件名带空格也安全;只提醒不拦截)

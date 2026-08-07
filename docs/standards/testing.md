@@ -1,36 +1,28 @@
-# 测试规范
+# 测试工程标准
 
-本文说明:测试写在哪、怎么跑,以及本仓库实际踩过的几个坑。
+测试验证公开行为与失败条件，不固定私有实现。运行命令集中在 `RUNBOOK.md`，何时必须运行由 `GATE-REQUIRED-VERIFICATION` 决定。
 
-## 原则
+## 测试边界
 
-- **测行为,不测实现**:测试验证"输入什么、得到什么",不检查内部怎么实现的。
-  实现重构后行为没变,测试就不应该跟着改
-- **业务逻辑写成可以脱离界面测试的类型**:参考 DemoNotes 的 NotesStore——
-  它是一个纯粹的结构体,增删逻辑不牵扯任何 UI,测试三行就能验证一条规则
-- 单元测试目标由工厂默认生成(用 Swift Testing 框架);UI 测试成本高、易碎,
-  默认不开,确有需要再显式开启
-- Objective-C 代码同样从 Swift Testing 里测:共享模块直接 `import`,
-  app 内部的类经测试目标的桥接头(见混编规范)
+- 把业务逻辑放在可脱离 UI 构造的类型中；DemoNotes 的 `NotesStore` 是当前示例。
+- Swift target 使用 Swift Testing。测试命名表达输入、事件和可观察结果。
+- Objective-C framework 通过 module import 测试；同一 App target 的 Objective-C 使用测试桥接头。
+- UI 测试覆盖真正依赖系统交互的关键路径，避免用 UI 测试重复验证纯逻辑。
+- 网络与时间等外部输入在测试边界注入，避免把真实服务可用性混入单元测试结果。
 
-## 怎么跑
+## 测试质量
 
-| 场景 | 命令 |
-|---|---|
-| 日常:只测受本次改动影响的 app | `./scripts/test-affected.sh` |
-| 查看受影响范围(不跑测试) | `./scripts/test-affected.sh --list` |
-| 指定比较基准 | `./scripts/test-affected.sh --base <ref>` |
-| 手动全量测某个 app | `xcodebuild -workspace AppleStudio.xcworkspace -scheme <App> -destination 'platform=iOS Simulator,name=<设备名>' test`(设备名用 `xcrun simctl list devices available` 查;通常直接用 test-affected 即可,它会自动选) |
+好的测试在实现重构后仍成立，失败时能直接说明哪条行为不满足。它覆盖正常输出、边界值、错误/取消路径，以及共享 API 的兼容性。
 
-## 实际踩过的坑(勿再踩)
+行为变更的 test-first 纪律由 `CONV-TEST-FIRST` 定义。测试代码本身仍接受正常重构，但不能为掩盖产品行为回归而降低断言。
 
-1. **`#expect` 宏里不要调用 mutating 方法**。Swift Testing 的 `#expect` 会把
-   表达式包进一个不可变闭包,mutating 调用会编译报错("$0 is immutable")。
-   正确写法:先在宏外面调用、结果存进 let 常量,再对常量断言
-2. **Tuist 声明文件里的构建设置值不接受 String 变量**。`SettingsDictionary`
-   的值类型是 `SettingValue`,字符串字面量能自动转换,但字符串**变量**不能——
-   需要把变量显式声明为 `SettingValue` 类型,否则声明文件编译失败,
-   而且报错藏在 tuist 的日志文件里,很难第一时间发现
-3. **跑测试会真的启动 app**。测试宿主就是 app 本身,app 启动路径上的崩溃
-   (比如缺 `-ObjC` 链接参数导致的分类方法崩溃)会让整个测试直接失败——
-   这是特性不是缺陷:它替你发现了"编译通过但一运行就崩"的问题,不要绕过它
+## 已知编译与运行陷阱
+
+1. Swift Testing 的 `#expect` 会捕获表达式；mutating 调用先在宏外执行，把结果存入常量再断言。
+2. Tuist `SettingsDictionary` 的值是 `SettingValue`。字符串字面量可推断，字符串变量需要显式类型，否则 manifest 编译失败。
+3. App 测试会启动宿主。缺失 `-ObjC`、资源或初始化崩溃会表现为测试失败，这是有效的集成信号。
+4. Simulator destination 使用 UDID 比设备名稳定；设备名可能在多个 runtime 中重复。
+
+## UI 与并发测试关注点
+
+SwiftUI 状态测试优先覆盖 model/state transition，再用少量 UI 测试验证系统整合。涉及 async/await 时测试完成、错误、取消和 actor 隔离，不用任意 sleep 代替可观察同步点。

@@ -1,27 +1,15 @@
 #!/usr/bin/env bash
 #
-# build-all.sh — 构建仓库里的全部 app
-#
-# 【为什么需要这个脚本】
-# 共享层(Modules/)被所有 app 依赖:改了共享代码,某个 app 可能悄悄编译不过。
-# 这个脚本就是"共享层改动后的全量验证":把每个 app 都构建一遍,
-# 任何一个失败,整个脚本以非零退出码结束——这样它既能给人当体检工具,
-# 也能给自动化流程当卡点。
-#
-# 【它做了什么】
-#   1. tuist generate —— 先重新生成 workspace(工程声明可能刚被改过)
-#   2. 遍历 Apps/ 下的每个 app,用 xcodebuild 构建(模拟器目标,不需要签名证书)
-#
-# 【注意】
-# 只做"构建",不跑测试。跑测试用 scripts/test-affected.sh(只测受影响的部分,更快)。
+# build-all.sh — 重新生成 workspace 并构建 Apps/ 下的全部 App。
+# 输入:Tuist manifest 与锁定依赖。输出:每个 scheme 的无签名 Simulator build。
+# 失败语义:收集 App 构建结果，任一失败最终非零退出；不运行测试。
+# 规则:GATE-REQUIRED-VERIFICATION、GATE-TOOLCHAIN-VERSION。
 #
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# 工具只用 mise 安装的锁定版本,不允许退回系统里来路不明的 tuist
-# (否则"我这里能构建"可能只是因为版本恰好不同)
 if ! command -v mise >/dev/null 2>&1; then
     echo "❌ 缺少 mise。请先运行 scripts/bootstrap.sh" >&2
     exit 1

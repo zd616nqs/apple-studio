@@ -1,30 +1,10 @@
 #!/usr/bin/env bash
 #
-# test-affected.sh — 只对"受本次改动影响的 app"跑测试
-#
-# 【为什么需要这个脚本】
-# monorepo 里 app 会越来越多,每次改动都全量跑所有测试太慢。
-# 但"我改的这个文件影响了哪些 app"靠人脑判断又容易漏——尤其是改共享层时。
-# 这个脚本把判断交给依赖图:改动文件 → 归类 → 用 Tuist 的依赖图反查
-# → 得出受影响的 app 清单 → 只对它们跑测试。
-# 改共享模块会自动带出所有依赖它的 app(含间接依赖),改单个 app 则只测它自己。
-#
-# 【用法】
-#   scripts/test-affected.sh              对受影响的 app 跑测试(无受影响则直接通过)
-#   scripts/test-affected.sh --list       只输出受影响范围的 JSON,不跑测试
-#                                         (给其他自动化工具/skill 提供数据)
-#   scripts/test-affected.sh --base <ref> 显式指定比较基准(默认见下)
-#
-# 【改动范围怎么算】
-#   在 main 分支上:未提交的改动(含新建但未跟踪的文件——否则新写的测试文件会被漏掉)
-#   在其他分支上:分支与 main 的分叉点之后的全部提交 + 未提交改动
-#
-# 【文件怎么归类】(与蓝图约定一致)
-#   Apps/X/ 下的文件            → 影响 app X
-#   Modules/M/ 下的文件         → 用依赖图反查哪些 app 依赖模块 M(含间接依赖)
-#   Modules 顶层 / Tuist/ /
-#   Workspace.swift / 版本锁定文件 → 影响全部 app(工程结构或工具链变了,谁都跑不掉)
-#   其余(文档、流程配置、脚本)   → 不影响 app 构建产物,不触发测试
+# test-affected.sh — 分类 Git 变更并测试受影响 App。
+# 输入:可选 --list、--base <ref>；否则使用当前分支与工作树。
+# 输出:--list 返回 JSON；默认生成 workspace 并逐个运行受影响 scheme。
+# 失败语义:依赖图、Simulator 或任一测试失败时非零退出。
+# 规则:GATE-REQUIRED-VERIFICATION。
 #
 set -euo pipefail
 
@@ -165,7 +145,7 @@ for f in changed:
             trigger_all = f  # Modules 顶层文件(如 Project.swift)变了 → 所有 app 都受影响
     elif f.startswith("Tuist/") or f in ("Workspace.swift", "mise.toml", ".xcode-version"):
         trigger_all = f
-    # 其余文件(文档、.claude、.githooks、CLAUDE.md、openspec、scripts)不影响 app 构建产物
+    # 其余文件不影响 App 构建产物。
 
 if trigger_all:
     affected = set(all_apps)

@@ -1,22 +1,9 @@
 #!/usr/bin/env bash
 #
-# beta-smoke.sh — 用 beta 版 Xcode 做一次全量构建的提前体检
-#
-# 【背景】
-# 日常构建锁定在稳定版 Xcode(.xcode-version),保证发版可靠。
-# 但每年 6-9 月苹果发 beta 期间,新系统/新 SDK 的适配问题越早发现越好。
-# 这个脚本提供一条独立通道:用 beta 版 Xcode 把所有 app 构建一遍,
-# 提前暴露"新 SDK 下编译不过"这类问题。
-#
-# 【两条设计原则】
-#   1. 永不阻塞:任何失败只打印报告,脚本永远以 0 退出——
-#      beta 下构建失败是"情报"(记下来等适配),不是"事故",不应卡住任何流程。
-#   2. 不碰缓存:用一次性的临时 DerivedData 目录,
-#      避免 beta 工具链的产物污染日常构建的缓存。
-#
-# 【用法】
-#   scripts/beta-smoke.sh                          # 默认找 /Applications/Xcode-beta.app
-#   scripts/beta-smoke.sh /Applications/Xcode-27.1-beta.app   # 或指定路径
+# beta-smoke.sh — 用指定或默认 beta Xcode 构建全部 App。
+# 输入:可选 Xcode.app 路径。输出:逐 App 诊断。
+# 失败语义:缺工具或构建失败只报告，始终不阻塞；DerivedData 使用临时目录。
+# 规则:无（独立于 GATE-TOOLCHAIN-VERSION 的非权威兼容性观察）。
 #
 set -uo pipefail
 

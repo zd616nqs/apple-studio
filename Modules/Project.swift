@@ -1,7 +1,7 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-// 共享层工程(集中声明多个 framework):多 framework target,语言隔离(红线 3:改动只走 change/modules-* 分支)
+// 共享层工程:集中声明多个 framework，并保持 Swift/Objective-C target 边界。
 let project = Project(
     name: "Modules",
     targets: [
