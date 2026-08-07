@@ -29,18 +29,49 @@ if ! command -v mise >/dev/null 2>&1; then
     exit 1
 fi
 
+snapshot_personal_links() {
+    find .claude/skills -mindepth 1 -maxdepth 1 -type l ! -name 'openspec-*' -print0 |
+        sort -z |
+        while IFS= read -r -d '' link; do
+            printf '%s\t%s\n' "$link" "$(readlink "$link")"
+        done
+}
+
+temp_dir=$(mktemp -d)
+before_links="$temp_dir/personal-links.before"
+after_links="$temp_dir/personal-links.after"
+snapshot_personal_links > "$before_links"
+
 echo "▸ 重新生成根目录的 OpenSpec 工具文件(Claude + Codex 两套)"
-trap 'rm -rf "$REPO_ROOT/openspec"' EXIT
+trap 'rm -rf "$REPO_ROOT/openspec" "$temp_dir"' EXIT
 mise exec -- openspec init --tools claude,codex --force --no-animation . >/dev/null
+
+snapshot_personal_links > "$after_links"
+if ! cmp -s "$before_links" "$after_links"; then
+    echo "❌ GATE-AGENT-ENTRY:OpenSpec update 改动了个人 skill 软链" >&2
+    diff -u "$before_links" "$after_links" >&2 || true
+    exit 1
+fi
+if [ "$(readlink .agents/skills 2>/dev/null || true)" != "../.claude/skills" ]; then
+    echo "❌ GATE-AGENT-ENTRY:.agents/skills 入口缺失或目标错误" >&2
+    exit 1
+fi
 
 # 逐个检查每个 openspec 工作区是否仍然健康(升级偶尔会改文件格式)
 fail=0
 while IFS= read -r store; do
     store_dir=$(dirname "$store")
     echo "▸ 检查:$store_dir"
-    if ! output=$(cd "$store_dir" && mise exec -- openspec status 2>&1); then
-        echo "❌ $store_dir 的 openspec status 异常:" >&2
-        echo "$output" | head -5 >&2
+    for schema in light-change full-change; do
+        if ! output=$(cd "$store_dir" && mise exec -- openspec schema validate "$schema" --json 2>&1); then
+            echo "❌ GATE-OPENSPEC-SCHEMA:$store_dir/$schema 无效:" >&2
+            echo "$output" | head -10 >&2
+            fail=1
+        fi
+    done
+    if ! output=$(cd "$store_dir" && mise exec -- openspec validate --all --strict --no-interactive --json 2>&1); then
+        echo "❌ GATE-OPENSPEC-SCHEMA:$store_dir 的内容验证失败:" >&2
+        echo "$output" | head -10 >&2
         fail=1
     fi
 done < <(find Apps Modules -maxdepth 2 -type d -name openspec | sort)
