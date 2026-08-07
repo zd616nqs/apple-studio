@@ -34,9 +34,9 @@ if [ "$branch_scope" = repo ]; then
 else
     modules_touched=$(printf '%s\n' "$staged" | grep '^Modules/' || true)
     apps_touched=$(printf '%s\n' "$staged" | grep '^Apps/' || true)
-    repo_touched=$(printf '%s\n' "$staged" | grep -E \
-        '^(\.agents/|\.claude/|\.github/|\.githooks/|\.governance/|\.tooling/|Tuist/|docs/adr/|docs/standards/|scripts/|AGENTS\.md$|CLAUDE\.md$|GOVERNANCE\.md$|CONTEXT\.md$|RUNBOOK\.md$|Tuist\.swift$|Workspace\.swift$|mise\.toml$|\.gitignore$|\.swift-format$|\.xcode-version$|\.xcode-build-version$)' \
-        | head -1 || true)
+    # Apps/ 与 Modules/ 之外的 tracked 路径都属于仓库治理/工具/文档范围。
+    # 用排除式边界避免新增 repo entry 后再维护一份容易漂移的枚举。
+    repo_touched=$(printf '%s\n' "$staged" | grep -Ev '^(Apps/|Modules/)' | head -1 || true)
     case "$branch_scope" in
         "" | main | detached) ;;
         *)

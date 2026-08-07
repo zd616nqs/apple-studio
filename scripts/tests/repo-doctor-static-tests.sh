@@ -128,6 +128,16 @@ capture_hook
 printf '%s\n' "$output" | grep -q CHECK-BRANCH-NAME || fail "repo path scope mismatch missing Check:$output"
 pass "App scope touching repo path reports Check"
 
+make_fixture app-scope-onboarding
+git -C "$fixture" commit -qm baseline
+git -C "$fixture" switch -qc change/demonotes-update-copy
+printf '\nrepo onboarding change\n' >> "$fixture/docs/onboarding.md"
+git -C "$fixture" add docs/onboarding.md
+capture_hook
+[ "$status" -eq 0 ] || fail "onboarding scope Check changed hook exit:$output"
+printf '%s\n' "$output" | grep -q CHECK-BRANCH-NAME || fail "onboarding scope mismatch missing Check:$output"
+pass "App scope touching onboarding reports Check"
+
 make_fixture branch-check
 git -C "$fixture" symbolic-ref HEAD refs/heads/topic
 capture_static
