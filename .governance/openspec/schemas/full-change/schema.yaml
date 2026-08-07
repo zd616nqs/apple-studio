@@ -1,0 +1,66 @@
+name: full-change
+version: 1
+description: High-risk behavior workflow - proposal → specs → design → tasks
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Motivation, scope, capabilities, and impact
+    template: proposal.md
+    instruction: |
+      Explain why the behavior change is needed, the observable changes, and the
+      affected capability paths. Separate new and modified capabilities; preserve
+      exact existing paths and use kebab-case for new segments. List affected Apps,
+      shared modules, public APIs, data, privacy/security boundaries, dependencies,
+      and migration or irreversible impact. Mark breaking changes explicitly.
+      Keep implementation choices for design.md.
+    requires: []
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Observable behavior deltas for affected capabilities
+    template: spec.md
+    instruction: |
+      Create one delta spec per capability declared by the proposal. Preserve the
+      exact path of an existing capability. Use ADDED, MODIFIED, REMOVED, or RENAMED
+      Requirements and include the complete requirement when modifying it. Every
+      requirement has at least one four-hash Scenario with WHEN and THEN bullets.
+      A new capability starts with a Purpose of at least 50 characters.
+
+      Specs describe behavior, inputs, outputs, errors, compatibility, privacy,
+      security, and reliability constraints. Exclude implementation types,
+      libraries, architecture, and task sequencing.
+    requires: [proposal]
+
+  - id: design
+    generates: design.md
+    description: Technical decisions, trade-offs, migration, and rollback
+    template: design.md
+    instruction: |
+      Explain how the proposal and specs will be implemented. Record current
+      constraints, goals and non-goals, decisions with alternatives, risks and
+      mitigations, compatibility, migration, rollback, and any genuinely deferrable
+      open questions. Resolve questions that would change specs or task scope before
+      continuing. Reference earlier artifacts instead of repeating them.
+    requires: [proposal, specs]
+
+  - id: tasks
+    generates: tasks.md
+    description: Ordered, verifiable implementation checklist
+    template: tasks.md
+    instruction: |
+      Convert the accepted specs and design into small dependency-ordered checkbox
+      tasks. Include test-first evidence, the GATE-REQUIRED-VERIFICATION commands,
+      OpenSpec validation, and rollback verification. Every task uses `- [ ] X.Y`.
+      Do not carry unresolved questions that would change behavior or architecture.
+    requires: [specs, design]
+
+apply:
+  requires: [tasks]
+  tracks: tasks.md
+  instruction: |
+    Read repository GOVERNANCE.md and all change artifacts. Apply CONV-TEST-FIRST
+    and GATE-REQUIRED-VERIFICATION as defined there. Work through pending tasks
+    without changing accepted scope, mark each task complete with evidence, and
+    run strict OpenSpec validation. Pause for a real unresolved decision; do not
+    hide it in implementation. Confirm migration and rollback readiness before
+    archive.

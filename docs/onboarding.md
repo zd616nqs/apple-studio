@@ -1,115 +1,81 @@
-# Onboarding — 新人上手手册
+# Onboarding：理解 apple-studio
 
-> 读完这份 ≈10 分钟。深入细节时再按第 8 节的指引跳转,不用一次读完所有文档。
+apple-studio 是个人维护的 Apple 多 App monorepo。Tuist 让工程声明可读，OpenSpec 保存产品行为契约，脚本与 CI 把容易遗忘的检查变成可重复命令。Claude、Codex 和其他 Agent 都从同一个中立入口理解仓库。
 
-## 0. 一句话认识这个仓库
+这是一份给人读的心智模型，不是第二本规则手册。需要判断允许/禁止、变更等级或验证要求时，直接看根 `GOVERNANCE.md`。
 
-apple-studio 是一个**为 AI 助手协作而设计**的 Apple 生态 monorepo:多个 app 共用一套组件、规则和自动检查——人负责决策,AI 负责执行,仓库结构负责让双方都不跑偏。
-
-## 1. 五分钟跑起来
+## 第一次跑起来
 
 ```bash
-brew install mise        # 工具版本管理器(唯一需要手动装的东西)
-./scripts/bootstrap.sh   # 安装工具 → 启用提交检查 → 拉依赖 → 生成 workspace
-./scripts/build-all.sh   # 全部 app 构建,全部通过 = 环境健康
+brew install mise
+scripts/bootstrap.sh
+scripts/repo-doctor.sh
+scripts/build-all.sh
 ```
 
-想在 Xcode 里看:打开生成的 `AppleStudio.xcworkspace`。**注意它是生成物**——改工程结构永远改 `Project.swift` 等声明文件,不碰 xcodeproj(红线 1)。
+生成后的 `AppleStudio.xcworkspace` 可以直接用 Xcode 打开。工程结构来自 `Project.swift`、`Workspace.swift`、`Tuist.swift` 和 `Tuist/`，所以 workspace/project 随时可以重建。
 
-## 2. 心智模型:三个"唯一事实来源"
+## 四类长期事实
 
-理解这个仓库的钥匙:三类信息各有一个权威来源,谁也不允许有第二份。
+| 问题 | 去哪里看 |
+| --- | --- |
+| 仓库怎样协作和验证 | `GOVERNANCE.md` |
+| 工程有哪些 target、依赖和构建设置 | Tuist manifest 与 `Tuist/Package.swift` |
+| main 当前有哪些可观察行为 | 各产品 store 的 `openspec/specs/` |
+| 为什么采用某个难逆方案 | `docs/adr/` |
 
-| 信息 | 权威来源 | 一句话规矩 |
-|---|---|---|
-| **工程结构** | Tuist 声明文件(`*/Project.swift`、`Tuist/`) | Xcode 工程由声明生成;生成物不入库、不手改 |
-| **产品行为** | OpenSpec 文档(各 app 的 `openspec/specs/`) | specs 永远等于 main 分支已合并代码的真实行为 |
-| **版本历史** | git(分支 / tag) | 一个变更一条分支;tag `App-<Name>-x.y.z` = 发版时全仓库的完整快照 |
+`RUNBOOK.md` 只负责命令和恢复，`docs/standards/` 只负责代码与工程领域的做法，App `CONTEXT.md` 只解释领域术语。一个文件有一个职责，阅读者不需要比较多份“哪份更权威”。
 
-配套的**三区模型**决定任何文件该放哪:
-
-- **契约区**(specs、docs/adr、CLAUDE.md):长期有效的规则与记录,改动有流程
-- **工作区**(`openspec/changes/<名字>/`):进行中变更的容器,跟着分支走,归档时连过程材料一起进入历史
-- **草稿区**(`.agents/scratch/`,git 忽略):没立项的调研、草稿默认放这,永不进入仓库
-
-## 3. 目录地图
+## 目录地图
 
 ```text
 apple-studio/
-├── CLAUDE.md            ← AI 助手的地图:红线 + 路由表(AGENTS.md 是它的软链接)
-├── RUNBOOK.md           ← 人的手册:日常流程 §3 / 换机重建 / 故障排查
-├── Apps/
-│   ├── DemoNotes/       ← 纯 Swift 示例工程(新纯 Swift app 照抄它)
-│   └── DemoPhotoMark/   ← 混编示例工程(Swift+ObjC,新混编 app 照抄它)
-│       ├── Project.swift        工程声明(调用 Studio.app() 填空)
-│       ├── Sources/ Tests/ Resources/
-│       ├── CLAUDE.md CONTEXT.md app 级规则与术语表
-│       └── openspec/            本 app 的行为文档工作区
-├── Modules/             ← 共享层:FoundationKit / DesignKit(Swift)、LegacyCore(ObjC)
-│   └── openspec/            共享层自己的行为文档工作区
-├── Tuist/               ← Studio 工厂(工程约定的唯一来源)+ 第三方库版本清单
-├── scripts/             ← 5 个自动化脚本(每个文件头都有完整说明)
-├── docs/                ← adr/(决策记录) standards/(四份规范) onboarding.md(本文)
-├── .githooks/           ← 提交检查(对任何提交者生效,谁提交都要过)
-└── .claude/ + .agents/  ← AI 助手的配置与技能(软链接共用,人可以无视)
+├── GOVERNANCE.md                 中立治理源
+├── AGENTS.md -> GOVERNANCE.md    Codex/通用 Agent 入口
+├── CLAUDE.md -> GOVERNANCE.md    Claude 入口
+├── CONTEXT.md                    治理术语
+├── RUNBOOK.md                    命令与恢复
+├── Apps/<App>/
+│   ├── CONTEXT.md                App 领域术语
+│   ├── Project.swift             App target 事实
+│   └── openspec/                 正式行为与进行中 change
+├── Modules/                      共享 framework 与共享行为
+├── Tuist/                        工厂、依赖与工程 helper
+├── docs/adr/                     决策原因
+├── docs/standards/               工程领域规范
+├── .governance/                  OpenSpec 原生 schema 适配
+├── .agents/scratch/              ignored 中间产物
+└── scripts/                      可执行入口
 ```
 
-## 4. 一个变更的一生(真实案例:delete-note)
+App 目录不再放 Agent 入口。这样会失去 Claude 在子目录自动注入局部说明的便利，但根入口会根据路径要求读取 App `CONTEXT.md`、`Project.swift` 和相关 specs；完整取舍记录在 ADR-0005/0006。
 
-仓库里已归档的第一个变更就是活教材:`Apps/DemoNotes/openspec/changes/archive/2026-08-06-delete-note/`。
+## 一个工作如何流动
 
-```mermaid
-flowchart LR
-    A[需求<br>“给 DemoNotes 加删除”] --> B{判断级别<br>CLAUDE.md 变更路由}
-    B -->|行为变更| C[开分支<br>change/demonotes-delete-note]
-    C --> D[propose<br>生成需求/行为场景/任务清单]
-    D --> E[实现:测试先行<br>先确认测试失败→实现→通过]
-    E --> F[test-affected.sh<br>只测受影响的 app]
-    F --> G[archive<br>行为场景并入正式文档]
-    G --> H[merge --no-ff<br>→ push,分支保留]
-```
+开始时先在 `GOVERNANCE.md` 的决策表选择 direct、light-change、full-change 或 repo-change。Direct 是短路径；两类行为变更分别使用 OpenSpec 的轻量或完整 artifact 图；仓库架构决策保留 grill 记录和 ADR。
 
-四个要点:
+进行中的产品行为材料位于 store 的 `openspec/changes/<name>/`，完成并 archive 后更新正式 specs。未批准的调研、grill 中间材料、工具缓存与原型放 `.agents/scratch/<tool-or-task>/`。被接受的结果按含义进入 ADR、standards 或产品 specs，工具名不会变成长期目录分类。
 
-1. **先判断级别再动手**:琐碎改动直接改;行为变更走 propose;产品级/共享层大改先把需求盘问清楚
-2. **行为场景高于测试**:Given/When/Then 场景在写代码前定稿,测试只是场景的可执行翻译——AI 不能为了让测试通过而悄悄修改需求(有两条纪律在执行现场自动生效:新测试必须先以预期理由失败;实现期间禁改测试断言)
-3. **归档与合并绑定**:行为变更必须回写行为文档,在功能分支上归档,随代码一起进 main
-4. **合并 ≠ 发版**:日常合并不打 tag,真正发版才打
+本地 hook 提供快速反馈，repository doctor 给出统一健康报告，CI 对 main 给出最终结论。PR 先经过 Linux 静态检查；分类器只有在代码、共享层或工程配置受影响时才启动 Apple runner，最后由一个稳定的 `gate` 汇总结论。定时任务另跑当前 iOS 的全量构建与测试。三层的具体强度和规则 ID 只在 `GOVERNANCE.md` 定义。
 
-## 5. 自动检查:谁在把关什么
+## 示例工程在证明什么
 
-| 检查 | 位置 | 把关内容 | 力度 |
-|---|---|---|---|
-| 提交检查 | `.githooks/pre-commit` | 大文件、根目录污染、共享层越权分支、混合提交、代码格式 | 拒绝/提醒(对任何提交者生效) |
-| 编译检查 | Studio 工厂 | ObjC 缺空值标注 = 编译失败;`-ObjC` 防运行时崩溃 | 硬性 |
-| 共享区确认 | `.claude/hooks/` | 非共享层分支改共享区时弹出确认(仅 Claude) | 提醒 |
-| 密钥保护 | `.claude/settings.json` | AI 读写密钥类文件(仅 Claude) | 硬性 |
-| 影响面测试 | `scripts/test-affected.sh` | 改动的影响范围:改共享层自动测所有依赖它的 app | 验证 |
+- DemoNotes：纯 Swift/SwiftUI App 路径，以及 App 内状态与网络依赖示例。
+- DemoPhotoMark：Swift/Objective-C 混编 App、桥接头、Objective-C 第三方库和图片处理示例。
+- Modules：Swift 共享 framework 与 Objective-C framework 的集中声明方式。
 
-应急手段:`git commit --no-verify` 可跳过提交检查(确认误报时用,事后补救)。
+支持状态不是愿望清单。`verified`、`committed`、`recognized` 的术语定义见 `CONTEXT.md`，当前清单和升级证据以 `GOVERNANCE.md` 为准。
 
-## 6. 常见任务
+## 扩展代码规范和个人 skill
 
-| 要做什么 | 做法 | 详细说明 |
-|---|---|---|
-| 新建 app | 五步清单(声明文件填空 + 目录约定 + 行为文档工作区) | standards/project-structure.md |
-| 加第三方库 | 只改 `Tuist/Package.swift`(精确版本),app 用 `.external` 引用 | standards/dependencies.md |
-| 改共享层 | 开 `change/modules-*` 分支,改完必跑 build-all | 红线 3 |
-| 写混编代码 | 共享 ObjC 用 import;app 内部 ObjC 用桥接头 | standards/objc-swift-interop.md |
-| 升级工具链 | 改 mise.toml / .xcode-version,走变更分支 + build-all | RUNBOOK §5 |
-| 查 Apple API | Xcode MCP > 官方文档搜索 > 社区搜索 | .claude/skills/apple-api-lookup |
+项目特有且无法由原生 formatter 表达的真实规则，可以按工程关注点增加 `docs/standards/swift.md`、`objective-c.md`、`swiftui.md` 或 `concurrency.md`。没有真实规则时不建空文件。
 
-## 7. AI 协作机制(为什么有这些"奇怪文件")
+个人 skill 的唯一源码位于 `.tooling/skills/`，Agent 入口使用相对链接。Skill 负责工作流和触发条件，工程规范仍留在 standards 或原生配置。接入命令、命名和冲突检查见 `RUNBOOK.md`。
 
-- **CLAUDE.md / AGENTS.md(软链接)**:所有 AI 会话都开在仓库根目录,自动读到同一份红线与路由表——这就是"不用每次交代背景"的原因;说需求时带上 app 名即可,路由的单位是变更而不是会话
-- **.claude/skills/openspec-\***:OpenSpec 命令行工具自动生成的流程手册(不要手改,升级后运行 `scripts/openspec-update-all.sh` 重新生成);`/opsx:*` 命令是它们的入口
-- **各工作区的 config.yaml**:仓库纪律的注入点——propose/apply/archive 开工时,命令行会把这些规则塞进 AI 的上下文,不依赖 AI 自己记得;新 app 从示例工程复制 config,rules/operations 两段不可删减
-- **为什么测试不是权威**:AI 有"为了让测试变绿而修改测试"的倾向,所以行为场景(人审过的)才是权威,测试改动必须有场景变化作为依据
+## 推荐阅读顺序
 
-## 8. 深入阅读路线
-
-1. `RUNBOOK.md` — 日常操作全集(变更流程 §3 必读)
-2. `docs/standards/` 四份 — 改对应领域的代码前读对应篇(每篇都自成一体)
-3. `docs/adr/0001-0005` — 当初为什么这样设计(选型理由与已接受的风险)
-4. 各 app `openspec/specs/` — 每个 app 已上线行为的权威描述
-5. 建仓记录(仓库外):`skill学习/monorepo-blueprint-final.md`,§8 有 20 条实施踩坑记录
+1. `GOVERNANCE.md`：当前工作怎样分类、加载什么上下文、如何验收。
+2. 当前 App 的 `CONTEXT.md`、`Project.swift` 和相关 specs。
+3. 当前改动对应的 `docs/standards/`。
+4. 需要执行命令或恢复环境时读 `RUNBOOK.md`。
+5. 遇到意外设计时再读相关 ADR。

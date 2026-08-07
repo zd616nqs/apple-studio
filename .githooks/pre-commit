@@ -1,94 +1,98 @@
 #!/usr/bin/env bash
-#
-# pre-commit — 每次 git commit 前自动运行的提交检查
-#
-# 【为什么放在 git 层】
-# 本仓库由多个 AI 助手(Claude / Codex / 其他)和人共同提交代码。
-# 各家助手的自身约束互不通用,唯一对"所有提交者"都生效的位置就是 git 钩子——
-# 所以最重要的检查都放在这里,而不是依赖某个助手自己的配置。
-# (钩子经 scripts/bootstrap.sh 的 git config core.hooksPath 启用)
-#
-# 【检查清单】
-#   1  大文件拦截(拒绝):超过 5MB 的文件不允许进入仓库,防止仓库被素材撑爆
-#   1b 根目录 openspec/ 拦截(拒绝):变更文档必须建在各 app 自己的目录里
-#   1c 根目录新文档提醒(警告):调研草稿应放 .agents/scratch/,长期文档应放 docs/
-#   2  共享层分支提醒(警告):改 Modules/ 应该在 change/modules-* 分支上做
-#   3  混合提交提醒(警告):app 代码和共享代码最好分开提交,方便回退和审查
-#   4  Swift 格式检查(警告):用 Xcode 自带的 swift-format,规则见根目录 .swift-format
-#
-# 【应急通道】
-# 确认是误报时,可用 git commit --no-verify 跳过本钩子,事后再补救。
-#
+# pre-commit — 对 staged 内容运行共享 Gate，并报告快速 Checks。
+# 输入:Git index。输出:与 repo-doctor --staged 一致的 Gate ID，加分支/格式报告。
+# 失败语义:Gate 失败时非零；Check 不改变退出码；--no-verify 只影响本地。
+# 规则:GATE-ROOT-ALLOWLIST、GATE-GENERATED-FILES、GATE-SECRETS、
+# GATE-LARGE-FILES、GATE-DEPENDENCY-SOURCE、CHECK-BRANCH-NAME、
+# CHECK-CHANGE-TIER、CHECK-SWIFT-FORMAT。
 set -uo pipefail
 
-MAX_SIZE=$((5 * 1024 * 1024))
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$REPO_ROOT" ]; then
+    echo "❌ pre-commit:无法定位仓库根" >&2
+    exit 1
+fi
+cd "$REPO_ROOT"
 
-# core.quotepath=false:git 默认会把中文等非 ASCII 文件名转义成 "\351..." 的带引号形式,
-# 那样下面所有按文件名匹配的检查都会失效(实测:中文名的大文件能因此绕过拦截)
 staged=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=ACMR)
-[ -z "$staged" ] && exit 0
+[ -n "$staged" ] || exit 0
 
-fail=0
-
-# 1) 大文件拦截。注意量的是"暂存区里的内容"而不是磁盘上的文件——
-#    两者可能不一致(先 add 大文件、再缩小磁盘上的副本,就能骗过按磁盘文件测量的检查)
-while IFS= read -r f; do
-    size=$(git cat-file -s ":$f" 2>/dev/null || echo 0)
-    if [ "$size" -gt "$MAX_SIZE" ]; then
-        echo "❌ pre-commit:$f 暂存内容为 $((size / 1024 / 1024))MB(>5MB),拒绝入库(红线 5)。大素材请放在仓库之外。" >&2
-        fail=1
-    fi
-done <<< "$staged"
-
-# 1b) 根目录 openspec/ 拦截。openspec new 在没有工作区的目录会静默新建一个,
-#     根目录一旦出现 openspec/ 就会抢走命令的定位,变更文档从此写错地方——必须拒之门外
-root_openspec=$(echo "$staged" | grep '^openspec/' || true)
-if [ -n "$root_openspec" ]; then
-    {
-        echo "❌ pre-commit:仓库根目录不是 openspec 工作区(红线 8)。变更请建到对应目录:"
-        echo "    (cd Apps/<App> && mise exec -- openspec new change <name>)"
-        echo "    误建的根目录 openspec/ 直接删除即可"
-    } >&2
-    fail=1
+if ! scripts/repo-doctor.sh --staged; then
+    exit 1
 fi
 
-# 1c) 根目录新增文档提醒。白名单里的四个文件是根目录的正当居民,其余多半是放错了位置
-new_root_md=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=A | grep -E '^[^/]+\.md$' | grep -vE '^(CLAUDE|AGENTS|RUNBOOK|README)\.md$' || true)
-if [ -n "$new_root_md" ]; then
-    {
-        echo "⚠️  pre-commit:仓库根新增了文档(红线 8:调研草稿放 .agents/scratch/,长期文档放 docs/):"
-        echo "$new_root_md" | sed 's/^/    /'
-    } >&2
-fi
-
-# 2) 共享层分支提醒。Modules/ 的改动影响所有 app,约定在 change/modules-* 分支上做,
-#    这里只提醒不拦截(比如版本升级这类跨领域改动会正当地触碰它)
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
-modules_touched=$(echo "$staged" | grep '^Modules/' || true)
-if [ -n "$modules_touched" ] && [[ "$branch" != change/modules-* ]]; then
-    {
-        echo "⚠️  pre-commit:分支 $branch 改动了共享层 Modules/(红线 3:应在 change/modules-* 分支上做):"
-        echo "$modules_touched" | sed 's/^/    /'
-    } >&2
+if branch_scope=$(scripts/validate-branch-name.sh "$branch" --print-scope); then
+    :
+else
+    branch_scope=""
+    echo "⚠️  CHECK-BRANCH-NAME:$branch 不符合已声明的 change/<scope>-<verb-object>" >&2
 fi
 
-# 3) 混合提交提醒。一次提交同时动 app 和共享区,回退时会互相牵连,建议拆开
-shared_touched=$(echo "$staged" | grep -E '^(Modules/|Tuist/|Workspace\.swift|scripts/|\.githooks/|\.claude/|CLAUDE\.md)' || true)
-apps_touched=$(echo "$staged" | grep '^Apps/' || true)
-if [ -n "$apps_touched" ] && [ -n "$shared_touched" ]; then
-    echo "⚠️  pre-commit:app 与共享区混在同一提交,建议拆开;共享区改动后请运行 scripts/build-all.sh" >&2
-fi
-
-# 4) Swift 格式检查(逐个文件调用,文件名带空格也安全;只提醒不拦截)
-swift_staged=$(echo "$staged" | grep '\.swift$' || true)
-if [ -n "$swift_staged" ]; then
-    if xcrun --find swift-format >/dev/null 2>&1; then
-        while IFS= read -r f; do
-            xcrun swift-format lint "$f" 2>&1 || true
-        done <<< "$swift_staged" | head -20
-    else
-        echo "ℹ️  pre-commit:未找到 swift-format(随 Xcode 工具链提供),本次跳过格式检查" >&2
+if [ "$branch_scope" = repo ]; then
+    : # repo scope 可合法跨 App/Modules/工具边界。
+else
+    modules_touched=$(printf '%s\n' "$staged" | grep '^Modules/' || true)
+    apps_touched=$(printf '%s\n' "$staged" | grep '^Apps/' || true)
+    # Apps/ 与 Modules/ 之外的 tracked 路径都属于仓库治理/工具/文档范围。
+    # 用排除式边界避免新增 repo entry 后再维护一份容易漂移的枚举。
+    repo_touched=$(printf '%s\n' "$staged" | grep -Ev '^(Apps/|Modules/)' | head -1 || true)
+    case "$branch_scope" in
+        "" | main | detached) ;;
+        *)
+            if [ -n "$repo_touched" ]; then
+                echo "⚠️  CHECK-BRANCH-NAME:$branch 的 scope 与 repo 范围改动 $repo_touched 不匹配" >&2
+            fi
+            ;;
+    esac
+    if [ -n "$modules_touched" ] && [ "$branch_scope" != modules ]; then
+        echo "⚠️  CHECK-BRANCH-NAME:$branch 的 scope 可能与 Modules/ 改动不匹配" >&2
+    fi
+    case "$branch_scope" in
+        "" | main | detached | modules) ;;
+        *)
+            mismatched_app=""
+            while IFS= read -r path; do
+                [ -n "$path" ] || continue
+                app_name=${path#Apps/}
+                app_name=${app_name%%/*}
+                app_scope=$(printf '%s' "$app_name" | tr '[:upper:]' '[:lower:]')
+                if [ "$app_scope" != "$branch_scope" ]; then
+                    mismatched_app="$app_name"
+                    break
+                fi
+            done <<EOF
+$apps_touched
+EOF
+            if [ -n "$mismatched_app" ]; then
+                echo "⚠️  CHECK-BRANCH-NAME:$branch 的 scope 与 Apps/$mismatched_app/ 改动不匹配" >&2
+            fi
+            ;;
+    esac
+    if [ -n "$modules_touched" ] && [ -n "$apps_touched" ]; then
+        echo "⚠️  CHECK-CHANGE-TIER:同一提交触及 App 与共享层，请复核是否应升级 full-change/repo-change" >&2
     fi
 fi
 
-exit "$fail"
+swift_staged=$(printf '%s\n' "$staged" | grep '\.swift$' || true)
+if [ -n "$swift_staged" ]; then
+    if command -v xcrun >/dev/null 2>&1 && xcrun --find swift-format >/dev/null 2>&1; then
+        format_output=""
+        while IFS= read -r file; do
+            [ -f "$file" ] || continue
+            current_output=$(xcrun swift-format lint "$file" 2>&1 || true)
+            [ -z "$current_output" ] || format_output="$format_output
+$current_output"
+        done <<EOF
+$swift_staged
+EOF
+        if [ -n "$format_output" ]; then
+            echo "⚠️  CHECK-SWIFT-FORMAT:staged Swift 存在格式报告" >&2
+            printf '%s\n' "$format_output" | sed '/^$/d' | head -20 >&2
+        fi
+    else
+        echo "⚠️  CHECK-SWIFT-FORMAT:当前环境没有 swift-format，跳过报告" >&2
+    fi
+fi
+
+exit 0

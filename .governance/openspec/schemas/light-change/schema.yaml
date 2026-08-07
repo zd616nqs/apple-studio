@@ -1,0 +1,30 @@
+name: light-change
+version: 1
+description: Single-App reversible behavior workflow - specs only
+artifacts:
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Observable behavior delta for the affected capability
+    template: spec.md
+    instruction: |
+      Create one delta spec per capability whose observable behavior changes.
+      Confirm CHECK-CHANGE-TIER selected light-change before authoring artifacts.
+
+      Preserve the exact path of an existing capability. New path segments use
+      kebab-case. Use ADDED, MODIFIED, REMOVED, or RENAMED Requirements; include
+      the complete requirement when modifying it. Every requirement has at least
+      one four-hash Scenario with WHEN and THEN bullets. A new capability starts
+      with a Purpose of at least 50 characters.
+
+      Specs state behavior, inputs, outputs, errors, and external constraints.
+      Do not include implementation types, libraries, or task lists.
+    requires: []
+
+apply:
+  requires: [specs]
+  instruction: |
+    Read the repository GOVERNANCE.md, the App context, project declaration, and
+    this change's specs. Apply CONV-TEST-FIRST and GATE-REQUIRED-VERIFICATION as
+    defined there. Implement only the declared delta, validate the change, and
+    report rollback readiness before archive. This workflow intentionally has no
+    tasks artifact.

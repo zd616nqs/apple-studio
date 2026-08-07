@@ -1,1 +1,1 @@
-CLAUDE.md
+GOVERNANCE.md

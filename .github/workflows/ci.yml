@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    name: classify
+    runs-on: ubuntu-latest
+    outputs:
+      apple_required: ${{ steps.classify.outputs.apple_required }}
+      verification_scope: ${{ steps.classify.outputs.verification_scope }}
+      base_sha: ${{ steps.classify.outputs.base_sha }}
+      head_sha: ${{ steps.classify.outputs.head_sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: classify
+        name: Classify pull request
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.event.pull_request.head.sha }}"
+          elif [ "${{ github.event_name }}" = push ]; then
+            base_sha="${{ github.event.before }}"
+            head_sha="${{ github.sha }}"
+          else
+            echo "不支持的 CI event:${{ github.event_name }}" >&2
+            exit 1
+          fi
+          scripts/ci/classify-changes.sh \
+            "$base_sha" "$head_sha" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+  static:
+    name: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: "node npm:@fission-ai/openspec"
+      - name: Run portable repository gates
+        run: scripts/repo-doctor.sh --static
+
+  apple:
+    name: apple
+    needs: [classify, static]
+    if: ${{ needs.classify.outputs.apple_required == 'true' && needs.static.result == 'success' }}
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4
+      - name: Install Tuist dependencies
+        run: mise exec -- tuist install
+      - name: Verify repository and generate workspace
+        run: scripts/repo-doctor.sh --ci
+      - id: simulator
+        name: Select deterministic iOS Simulator
+        run: echo "udid=$(scripts/select-ios-simulator.sh)" >> "$GITHUB_OUTPUT"
+      - name: Run routed Apple verification
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          VERIFICATION_SCOPE: ${{ needs.classify.outputs.verification_scope }}
+          SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          case "$VERIFICATION_SCOPE" in
+            affected)
+              scripts/test-affected.sh --base "$BASE_SHA" \
+                --simulator-udid "$SIMULATOR_UDID"
+              ;;
+            all)
+              scripts/build-all.sh
+              scripts/test-affected.sh --all \
+                --simulator-udid "$SIMULATOR_UDID"
+              ;;
+            *)
+              echo "apple_required=true 但 verification_scope='$VERIFICATION_SCOPE' 无效" >&2
+              exit 1
+              ;;
+          esac
+
+  gate:
+    name: gate
+    needs: [classify, static, apple]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Evaluate required gate
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          APPLE_REQUIRED: ${{ needs.classify.outputs.apple_required }}
+          VERIFICATION_SCOPE: ${{ needs.classify.outputs.verification_scope }}
+          STATIC_RESULT: ${{ needs.static.result }}
+          APPLE_RESULT: ${{ needs.apple.result }}
+        run: |
+          scripts/ci/evaluate-gate.sh \
+            "$CLASSIFY_RESULT" "$APPLE_REQUIRED" "$VERIFICATION_SCOPE" \
+            "$STATIC_RESULT" "$APPLE_RESULT"

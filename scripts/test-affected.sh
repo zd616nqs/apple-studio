@@ -1,30 +1,10 @@
 #!/usr/bin/env bash
 #
-# test-affected.sh — 只对"受本次改动影响的 app"跑测试
-#
-# 【为什么需要这个脚本】
-# monorepo 里 app 会越来越多,每次改动都全量跑所有测试太慢。
-# 但"我改的这个文件影响了哪些 app"靠人脑判断又容易漏——尤其是改共享层时。
-# 这个脚本把判断交给依赖图:改动文件 → 归类 → 用 Tuist 的依赖图反查
-# → 得出受影响的 app 清单 → 只对它们跑测试。
-# 改共享模块会自动带出所有依赖它的 app(含间接依赖),改单个 app 则只测它自己。
-#
-# 【用法】
-#   scripts/test-affected.sh              对受影响的 app 跑测试(无受影响则直接通过)
-#   scripts/test-affected.sh --list       只输出受影响范围的 JSON,不跑测试
-#                                         (给其他自动化工具/skill 提供数据)
-#   scripts/test-affected.sh --base <ref> 显式指定比较基准(默认见下)
-#
-# 【改动范围怎么算】
-#   在 main 分支上:未提交的改动(含新建但未跟踪的文件——否则新写的测试文件会被漏掉)
-#   在其他分支上:分支与 main 的分叉点之后的全部提交 + 未提交改动
-#
-# 【文件怎么归类】(与蓝图约定一致)
-#   Apps/X/ 下的文件            → 影响 app X
-#   Modules/M/ 下的文件         → 用依赖图反查哪些 app 依赖模块 M(含间接依赖)
-#   Modules 顶层 / Tuist/ /
-#   Workspace.swift / 版本锁定文件 → 影响全部 app(工程结构或工具链变了,谁都跑不掉)
-#   其余(文档、流程配置、脚本)   → 不影响 app 构建产物,不触发测试
+# test-affected.sh — 分类 Git 变更并测试受影响 App。
+# 输入:可选 --list、--all、--base <ref>、--simulator-udid <UDID>。
+# 输出:--list 返回 JSON；默认生成 workspace 并逐个运行受影响 scheme。
+# 失败语义:依赖图、Simulator 或任一测试失败时非零退出。
+# 规则:GATE-REQUIRED-VERIFICATION。
 #
 set -euo pipefail
 
@@ -33,15 +13,22 @@ cd "$REPO_ROOT"
 
 MODE="run"
 BASE=""
+FORCE_ALL=0
+SIMULATOR_UDID=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --list) MODE="list" ;;
+        --all) FORCE_ALL=1 ;;
         --base)
             BASE="${2:?--base 需要一个 ref}"
             shift
             ;;
+        --simulator-udid)
+            SIMULATOR_UDID="${2:?--simulator-udid 需要一个 UDID}"
+            shift
+            ;;
         *)
-            echo "未知参数:$1(支持 --list / --base <ref>)" >&2
+            echo "未知参数:$1(支持 --list / --all / --base <ref> / --simulator-udid <UDID>)" >&2
             exit 2
             ;;
     esac
@@ -58,18 +45,24 @@ done
 
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
 
-changed=$(
-    {
-        if [ -n "$BASE" ]; then
-            git diff --name-only "$BASE"
-        elif [ "$branch" != "main" ] && git rev-parse --verify -q main >/dev/null; then
-            git diff --name-only "$(git merge-base main HEAD)"
-        fi
-        git diff --name-only
-        git diff --cached --name-only
-        git ls-files --others --exclude-standard
-    } | sort -u | grep -v '^$' || true
-)
+if [ "$FORCE_ALL" -eq 1 ]; then
+    changed=Workspace.swift
+    BASE=""
+else
+    if [ -n "$BASE" ]; then
+        BASE=$(scripts/resolve-comparison-base.sh "$BASE")
+    else
+        BASE=$(scripts/resolve-comparison-base.sh)
+    fi
+    changed=$(
+        {
+            git diff --name-only "$BASE" HEAD
+            git diff --name-only
+            git diff --cached --name-only
+            git ls-files --others --exclude-standard
+        } | sort -u | grep -v '^$' || true
+    )
+fi
 
 if [ -z "$changed" ]; then
     if [ "$MODE" = "list" ]; then
@@ -156,16 +149,32 @@ trigger_all = None
 
 for f in changed:
     parts = f.split("/")
+    if "/openspec/" in f or f.startswith(".governance/"):
+        continue
     if f.startswith("Apps/") and len(parts) > 1 and parts[1] in all_apps:
-        affected.add(parts[1])
+        if len(parts) >= 3 and parts[2] == "Resources":
+            affected.add(parts[1])
+        elif not f.endswith(".md"):
+            affected.add(parts[1])
     elif f.startswith("Modules/"):
         if len(parts) >= 3:
             affected_modules.add(parts[1])
         else:
             trigger_all = f  # Modules 顶层文件(如 Project.swift)变了 → 所有 app 都受影响
-    elif f.startswith("Tuist/") or f in ("Workspace.swift", "mise.toml", ".xcode-version"):
+    elif (
+        f.startswith("Tuist/")
+        or f.startswith("scripts/")
+        or f
+        in (
+            "Tuist.swift",
+            "Workspace.swift",
+            "mise.toml",
+            ".xcode-version",
+            ".xcode-build-version",
+        )
+    ):
         trigger_all = f
-    # 其余文件(文档、.claude、.githooks、CLAUDE.md、openspec、scripts)不影响 app 构建产物
+    # 其余 Markdown/治理文件不影响 App 构建产物。
 
 if trigger_all:
     affected = set(all_apps)
@@ -199,16 +208,11 @@ if [ -z "$apps" ]; then
     exit 0
 fi
 
-# 跑测试需要一台具体的模拟器,从可用设备里选第一台 iPhone
-sim=$(xcrun simctl list devices available -j | python3 -c '
-import json, sys
-data = json.load(sys.stdin)
-names = [d["name"] for devs in data["devices"].values() for d in devs if d["name"].startswith("iPhone")]
-print(names[0] if names else "")
-')
-if [ -z "$sim" ]; then
-    echo "❌ 找不到可用的 iPhone 模拟器" >&2
-    exit 1
+# xcodebuild 始终消费 UDID；即使多个 runtime 有同名设备也不会产生歧义。
+if [ -n "$SIMULATOR_UDID" ]; then
+    sim="$SIMULATOR_UDID"
+else
+    sim=$(scripts/select-ios-simulator.sh)
 fi
 
 echo "▸ tuist generate"
@@ -216,9 +220,9 @@ mise exec -- tuist generate --no-open >/dev/null
 
 fail=0
 for scheme in $apps; do
-    echo "▸ 测试 $scheme(模拟器:$sim)"
+    echo "▸ 测试 $scheme(Simulator UDID:$sim)"
     xcodebuild -workspace AppleStudio.xcworkspace -scheme "$scheme" \
-        -destination "platform=iOS Simulator,name=$sim" \
+        -destination "platform=iOS Simulator,id=$sim" \
         -quiet CODE_SIGNING_ALLOWED=NO test || { echo "❌ $scheme 测试失败"; fail=1; }
 done
 

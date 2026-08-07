@@ -1,42 +1,32 @@
-# 依赖管理规范
+# 依赖工程标准
 
-本文说明:第三方库怎么引入、怎么升级,以及为什么全仓库只允许存在一个版本。
+本文件解释 Apple target 如何消费第三方库以及升级时要关注的工程风险。依赖声明位置的仓库 Gate 只在 `GOVERNANCE.md` 的 `GATE-DEPENDENCY-SOURCE` 定义。
 
-## 单一版本策略:全仓库同一时刻只有一套依赖版本
+## 单一版本图
 
-**规矩**:所有第三方库集中声明在 `Tuist/Package.swift` 一个文件里,用精确版本号锁定;
-app 和共享模块只写 `.external(name: "库名")` 引用,不允许在别处私自添加依赖。
-锁定结果文件 `Tuist/Package.resolved` 必须提交进仓库。
+整个 workspace 从 `Tuist/Package.swift` 解析一套第三方依赖版本，App 和共享模块在 manifest 中使用 `.external(name:)` 消费同一解析结果。`Tuist/Package.resolved` 保存可复现解析结果。
 
-**为什么这么严**:多个 app 共用一套共享层,如果 A app 用 Alamofire 5.10、
-B app 用 5.8,共享层该按哪个编译?这个问题没有便宜的答案。干脆取消它:
-全仓库任何时刻只有一个版本。想看"某个 app 曾经用的旧版本组合"怎么办?
-——发版时打的 tag(格式 `App-<Name>-x.y.z`)就是当时整个仓库的完整快照,
-从 tag 拉分支即可回到那套组合。
+单一版本图避免同一 framework 在不同 App 中出现不兼容构建。它也意味着共享公开 API 的演进应优先增加新接口、逐步废弃旧接口；破坏性升级需要同时验证所有使用方。
 
-这也意味着共享层的公开接口默认要向后兼容(加新接口、废弃旧接口,而不是改签名),
-破坏性修改必须当场把所有使用方一起改完。
+## 引入或升级库
 
-## 引入或升级一个库
+1. 阅读上游 release notes，确认最低系统、Swift/Xcode、隐私清单和二进制架构要求。
+2. 修改 `Tuist/Package.swift`，运行 `mise exec -- tuist install` 更新解析结果。
+3. 重新 generate，构建全部 App，并运行影响面测试；命令见 `RUNBOOK.md`。
+4. 检查公开 API、App 启动、资源 bundle、隐私清单和 Objective-C linker flag 是否受影响。
 
-1. 开一条专门的分支(建议名如 `change/deps-升级内容`),只改 `Tuist/Package.swift`
-2. 运行 `mise exec -- tuist install` 拉取,再 `./scripts/build-all.sh`
-   确认所有 app 构建通过,受影响的 app 跑一遍测试
-3. 一次只动一个库;大版本升级先读上游的更新说明再动手
+一次只升级一个高风险依赖，能让失败来源和回滚点保持清楚。
 
-## 只发布 CocoaPods 的 SDK 怎么办
+## 只有 CocoaPods 分发的 SDK
 
-本仓库不使用 CocoaPods 作为常规依赖工具。如果某个第三方 SDK 只提供 CocoaPods
-安装方式(常见于国内厂商 SDK),按成本从低到高三步走:
+优先顺序：
 
-1. **隔离引用**:写一个薄壳模块包住这个 SDK,业务代码只调用薄壳,
-   不直接 import SDK——将来替换时只改薄壳一处
-2. **预编译成品**:把 SDK 用 CocoaPods 环境单独打成 XCFramework 二进制,
-   主工程直接引用成品,工程本身保持无 CocoaPods
-3. **彻底替换**:SDK 停止维护或集成成本过高时,换库或自己实现
+1. 用薄模块隔离 SDK API，让业务代码不直接 import 厂商类型。
+2. 能稳定重现时，将 SDK 制作为 XCFramework，由 Tuist 作为二进制依赖接入。
+3. 如果授权、架构、隐私或维护状态不合适，替换 SDK 或自行实现所需能力。
 
-## 工具链本身也是依赖
+不要让 CocoaPods workspace 成为这个 Tuist workspace 的第二套工程图。
 
-Tuist 和 openspec 命令行的版本锁定在 `mise.toml`,Xcode 版本锁定在 `.xcode-version`。
-升级它们和升级第三方库同样对待:开分支、改版本号、`./scripts/build-all.sh`
-全部通过后再合并——不要在做其他事情时"顺手"升级工具。
+## 工具链依赖
+
+Tuist、Node 和 OpenSpec 由 `mise.toml` 锁定；Xcode marketing version 与 build identity 分别由 `.xcode-version`、`.xcode-build-version` 锁定。升级时同时验证 manifest 解析、schema、生成、构建与测试，具体入口见 `RUNBOOK.md`。
