@@ -56,7 +56,7 @@ App 目录不再放 Agent 入口。这样会失去 Claude 在子目录自动注�
 
 进行中的产品行为材料位于 store 的 `openspec/changes/<name>/`，完成并 archive 后更新正式 specs。未批准的调研、grill 中间材料、工具缓存与原型放 `.agents/scratch/<tool-or-task>/`。被接受的结果按含义进入 ADR、standards 或产品 specs，工具名不会变成长期目录分类。
 
-本地 hook 提供快速反馈，repository doctor 给出统一健康报告，CI 对 main 给出最终结论。三层的具体强度和规则 ID 只在 `GOVERNANCE.md` 定义。
+本地 hook 提供快速反馈，repository doctor 给出统一健康报告，CI 对 main 给出最终结论。PR 先经过 Linux 静态检查；分类器只有在代码、共享层或工程配置受影响时才启动 Apple runner，最后由一个稳定的 `gate` 汇总结论。定时任务另跑当前 iOS 的全量构建与测试。三层的具体强度和规则 ID 只在 `GOVERNANCE.md` 定义。
 
 ## 示例工程在证明什么
 

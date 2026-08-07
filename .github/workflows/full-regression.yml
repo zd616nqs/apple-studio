@@ -1,0 +1,30 @@
+name: Full Regression
+
+on:
+  schedule:
+    - cron: "17 9 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-regression:
+    name: full-regression
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4
+      - name: Verify repository and generate workspace
+        run: scripts/repo-doctor.sh --ci
+      - id: simulator
+        name: Select deterministic iOS Simulator
+        run: echo "udid=$(scripts/select-ios-simulator.sh)" >> "$GITHUB_OUTPUT"
+      - name: Build every App
+        run: scripts/build-all.sh
+      - name: Test every App
+        env:
+          SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
+        run: scripts/test-affected.sh --all --simulator-udid "$SIMULATOR_UDID"

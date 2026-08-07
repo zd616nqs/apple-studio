@@ -96,15 +96,19 @@ else
     pass "invalid diff boundary fails classification"
 fi
 
-expect_gate "explicit false accepts skipped Apple" success success false success skipped
-expect_gate "explicit true accepts successful Apple" success success true success success
-expect_gate "classification failure is rejected" failure failure false success skipped
-expect_gate "missing classification is rejected" failure success "" success skipped
-expect_gate "invalid classification is rejected" failure success maybe success skipped
-expect_gate "static failure is rejected" failure success false failure skipped
-expect_gate "true plus skipped Apple is rejected" failure success true success skipped
-expect_gate "false plus successful Apple is inconsistent" failure success false success success
-expect_gate "cancelled Apple is rejected" failure success true success cancelled
+expect_gate "explicit false accepts skipped Apple" success success false none success skipped
+expect_gate "explicit true accepts successful Apple" success success true affected success success
+expect_gate "full scope accepts successful Apple" success success true all success success
+expect_gate "classification failure is rejected" failure failure false none success skipped
+expect_gate "missing classification is rejected" failure success "" none success skipped
+expect_gate "invalid classification is rejected" failure success maybe none success skipped
+expect_gate "missing verification scope is rejected" failure success false "" success skipped
+expect_gate "false plus affected scope is rejected" failure success false affected success skipped
+expect_gate "true plus none scope is rejected" failure success true none success success
+expect_gate "static failure is rejected" failure success false none failure skipped
+expect_gate "true plus skipped Apple is rejected" failure success true affected success skipped
+expect_gate "false plus successful Apple is inconsistent" failure success false none success success
+expect_gate "cancelled Apple is rejected" failure success true all success cancelled
 
 if ruby -e 'require "yaml"; YAML.parse_file(ARGV.fetch(0))' "$WORKFLOW" >/dev/null 2>&1; then
     pass "workflow is valid YAML"

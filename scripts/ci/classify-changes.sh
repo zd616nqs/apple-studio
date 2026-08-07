@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # classify-changes.sh — 将 PR diff 分类为是否需要 Apple runner。
 # 输入:base commit 与 head commit。
-# 输出:GitHub Actions output 格式的 apple_required=true|false。
+# 输出:GitHub Actions output 格式的 apple_required 与 verification_scope。
 # 失败语义:边界无效或 diff 不可读取时非零且不输出决策。
 set -uo pipefail
 
@@ -24,15 +24,27 @@ if ! changed_paths=$(git -c core.quotepath=false diff --name-only "$base" "$head
     exit 1
 fi
 
-apple_required=false
+verification_scope=none
 while IFS= read -r path; do
     [ -n "$path" ] || continue
     case "$path" in
         *.md | docs/* | .github/* | .governance/* | .agents/* | .claude/* | \
+            .githooks/* | .tooling/* | .gitignore | .swift-format | \
             Apps/*/openspec/* | Modules/openspec/*)
             ;;
+        Apps/*)
+            if [ "$verification_scope" = none ]; then
+                verification_scope=affected
+            fi
+            ;;
+        Modules/* | Tuist/* | Tuist.swift | Workspace.swift | mise.toml | \
+            .xcode-version | .xcode-build-version | scripts/*)
+            verification_scope=all
+            break
+            ;;
         *)
-            apple_required=true
+            # 未分类的新根 entry 失败关闭，直至治理表明确它是否影响 Apple 产物。
+            verification_scope=all
             break
             ;;
     esac
@@ -40,4 +52,10 @@ done <<EOF
 $changed_paths
 EOF
 
+if [ "$verification_scope" = none ]; then
+    apple_required=false
+else
+    apple_required=true
+fi
 echo "apple_required=$apple_required"
+echo "verification_scope=$verification_scope"

@@ -24,6 +24,9 @@ scripts/build-all.sh
 | 查看受影响 App | `scripts/test-affected.sh --list` |
 | 测试受影响 App | `scripts/test-affected.sh` |
 | 指定影响面基准 | `scripts/test-affected.sh --base <ref>` |
+| 选择确定性 iOS Simulator | `scripts/select-ios-simulator.sh` |
+| 用明确 UDID 测试全部 App | `scripts/test-affected.sh --all --simulator-udid <UDID>` |
+| 手动触发全量远端回归 | `gh workflow run full-regression.yml` |
 | 重新生成 workspace | `mise exec -- tuist generate --no-open` |
 | OpenSpec 更新后刷新适配 | `scripts/openspec-update-all.sh` |
 | 验证某 store | `(cd Apps/<App> && mise exec -- openspec validate --all --strict --no-interactive)` |
@@ -52,6 +55,8 @@ git commit --no-verify -m "<conventional commit>" -m "Break-Glass: <具体原因
 - workspace 或 project 状态异常：关闭 Xcode，删除 ignored 生成物，再运行 `mise exec -- tuist generate --no-open`。不要删除 manifest 或 `Tuist/Package.resolved`。
 - 依赖没有安装：运行 `mise exec -- tuist install` 后重新 generate。
 - 找不到可用 Simulator：运行 `xcrun simctl list devices available`，确认已安装与 Xcode 匹配的 runtime。
+- affected-test 报比较基准不明确：feature branch 先 fetch `main`，或显式传 `--base <commit>`；detached HEAD 必须显式传 base。
+- CI 报 Xcode build 与 lock 不一致：查看 `xcode-27` job 的 runner image 清单；镜像滚动升级后走 repo change 更新 `.xcode-build-version` 并重跑本地全量验证，不要放宽精确 build Gate。
 - 测试宿主启动即崩溃：混编 App 先检查 `OTHER_LDFLAGS` 是否仍有 `-ObjC`，再读 `docs/standards/objc-swift-interop.md`。
 - OpenSpec 找错 store：切换到 `Apps/<App>` 或 `Modules` 再执行命令；仓库根不建立 `openspec/`。
 - OpenSpec update 失败：确认没有 root `openspec/` 残留，运行 `scripts/openspec-update-all.sh`，再按输出修复 schema 或链接。

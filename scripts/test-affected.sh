@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # test-affected.sh — 分类 Git 变更并测试受影响 App。
-# 输入:可选 --list、--base <ref>；否则使用当前分支与工作树。
+# 输入:可选 --list、--all、--base <ref>、--simulator-udid <UDID>。
 # 输出:--list 返回 JSON；默认生成 workspace 并逐个运行受影响 scheme。
 # 失败语义:依赖图、Simulator 或任一测试失败时非零退出。
 # 规则:GATE-REQUIRED-VERIFICATION。
@@ -13,15 +13,22 @@ cd "$REPO_ROOT"
 
 MODE="run"
 BASE=""
+FORCE_ALL=0
+SIMULATOR_UDID=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --list) MODE="list" ;;
+        --all) FORCE_ALL=1 ;;
         --base)
             BASE="${2:?--base 需要一个 ref}"
             shift
             ;;
+        --simulator-udid)
+            SIMULATOR_UDID="${2:?--simulator-udid 需要一个 UDID}"
+            shift
+            ;;
         *)
-            echo "未知参数:$1(支持 --list / --base <ref>)" >&2
+            echo "未知参数:$1(支持 --list / --all / --base <ref> / --simulator-udid <UDID>)" >&2
             exit 2
             ;;
     esac
@@ -38,18 +45,24 @@ done
 
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
 
-changed=$(
-    {
-        if [ -n "$BASE" ]; then
-            git diff --name-only "$BASE"
-        elif [ "$branch" != "main" ] && git rev-parse --verify -q main >/dev/null; then
-            git diff --name-only "$(git merge-base main HEAD)"
-        fi
-        git diff --name-only
-        git diff --cached --name-only
-        git ls-files --others --exclude-standard
-    } | sort -u | grep -v '^$' || true
-)
+if [ "$FORCE_ALL" -eq 1 ]; then
+    changed=Workspace.swift
+    BASE=""
+else
+    if [ -n "$BASE" ]; then
+        BASE=$(scripts/resolve-comparison-base.sh "$BASE")
+    else
+        BASE=$(scripts/resolve-comparison-base.sh)
+    fi
+    changed=$(
+        {
+            git diff --name-only "$BASE" HEAD
+            git diff --name-only
+            git diff --cached --name-only
+            git ls-files --others --exclude-standard
+        } | sort -u | grep -v '^$' || true
+    )
+fi
 
 if [ -z "$changed" ]; then
     if [ "$MODE" = "list" ]; then
@@ -143,7 +156,18 @@ for f in changed:
             affected_modules.add(parts[1])
         else:
             trigger_all = f  # Modules 顶层文件(如 Project.swift)变了 → 所有 app 都受影响
-    elif f.startswith("Tuist/") or f in ("Workspace.swift", "mise.toml", ".xcode-version"):
+    elif (
+        f.startswith("Tuist/")
+        or f.startswith("scripts/")
+        or f
+        in (
+            "Tuist.swift",
+            "Workspace.swift",
+            "mise.toml",
+            ".xcode-version",
+            ".xcode-build-version",
+        )
+    ):
         trigger_all = f
     # 其余文件不影响 App 构建产物。
 
@@ -179,16 +203,11 @@ if [ -z "$apps" ]; then
     exit 0
 fi
 
-# 跑测试需要一台具体的模拟器,从可用设备里选第一台 iPhone
-sim=$(xcrun simctl list devices available -j | python3 -c '
-import json, sys
-data = json.load(sys.stdin)
-names = [d["name"] for devs in data["devices"].values() for d in devs if d["name"].startswith("iPhone")]
-print(names[0] if names else "")
-')
-if [ -z "$sim" ]; then
-    echo "❌ 找不到可用的 iPhone 模拟器" >&2
-    exit 1
+# xcodebuild 始终消费 UDID；即使多个 runtime 有同名设备也不会产生歧义。
+if [ -n "$SIMULATOR_UDID" ]; then
+    sim="$SIMULATOR_UDID"
+else
+    sim=$(scripts/select-ios-simulator.sh)
 fi
 
 echo "▸ tuist generate"
@@ -196,9 +215,9 @@ mise exec -- tuist generate --no-open >/dev/null
 
 fail=0
 for scheme in $apps; do
-    echo "▸ 测试 $scheme(模拟器:$sim)"
+    echo "▸ 测试 $scheme(Simulator UDID:$sim)"
     xcodebuild -workspace AppleStudio.xcworkspace -scheme "$scheme" \
-        -destination "platform=iOS Simulator,name=$sim" \
+        -destination "platform=iOS Simulator,id=$sim" \
         -quiet CODE_SIGNING_ALLOWED=NO test || { echo "❌ $scheme 测试失败"; fail=1; }
 done
 
