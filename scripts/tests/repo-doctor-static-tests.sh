@@ -118,6 +118,16 @@ capture_hook
 printf '%s\n' "$output" | grep -q CHECK-BRANCH-NAME || fail "mismatched App scope missing Check:$output"
 pass "mismatched App scope reports Check"
 
+make_fixture app-scope-repo-path
+git -C "$fixture" commit -qm baseline
+git -C "$fixture" switch -qc change/demonotes-update-copy
+printf '\nrepo-scope change\n' >> "$fixture/scripts/beta-smoke.sh"
+git -C "$fixture" add scripts/beta-smoke.sh
+capture_hook
+[ "$status" -eq 0 ] || fail "repo path scope Check changed hook exit:$output"
+printf '%s\n' "$output" | grep -q CHECK-BRANCH-NAME || fail "repo path scope mismatch missing Check:$output"
+pass "App scope touching repo path reports Check"
+
 make_fixture branch-check
 git -C "$fixture" symbolic-ref HEAD refs/heads/topic
 capture_static

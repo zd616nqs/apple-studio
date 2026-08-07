@@ -34,6 +34,17 @@ if [ "$branch_scope" = repo ]; then
 else
     modules_touched=$(printf '%s\n' "$staged" | grep '^Modules/' || true)
     apps_touched=$(printf '%s\n' "$staged" | grep '^Apps/' || true)
+    repo_touched=$(printf '%s\n' "$staged" | grep -E \
+        '^(\.agents/|\.claude/|\.github/|\.githooks/|\.governance/|\.tooling/|Tuist/|docs/adr/|docs/standards/|scripts/|AGENTS\.md$|CLAUDE\.md$|GOVERNANCE\.md$|CONTEXT\.md$|RUNBOOK\.md$|Tuist\.swift$|Workspace\.swift$|mise\.toml$|\.gitignore$|\.swift-format$|\.xcode-version$|\.xcode-build-version$)' \
+        | head -1 || true)
+    case "$branch_scope" in
+        "" | main | detached) ;;
+        *)
+            if [ -n "$repo_touched" ]; then
+                echo "⚠️  CHECK-BRANCH-NAME:$branch 的 scope 与 repo 范围改动 $repo_touched 不匹配" >&2
+            fi
+            ;;
+    esac
     if [ -n "$modules_touched" ] && [ "$branch_scope" != modules ]; then
         echo "⚠️  CHECK-BRANCH-NAME:$branch 的 scope 可能与 Modules/ 改动不匹配" >&2
     fi
