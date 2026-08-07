@@ -60,6 +60,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@v4
+      - name: Install Tuist dependencies
+        run: mise exec -- tuist install
       - name: Verify repository and generate workspace
         run: scripts/repo-doctor.sh --ci
       - id: simulator

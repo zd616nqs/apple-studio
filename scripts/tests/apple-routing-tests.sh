@@ -124,7 +124,8 @@ else
     pass "missing iPhone simulator fails"
 fi
 
-if grep -Eq '^  push:' "$CI_WORKFLOW" && grep -q 'runs-on: xcode-27' "$CI_WORKFLOW"; then
+if grep -Eq '^  push:' "$CI_WORKFLOW" && grep -q 'runs-on: xcode-27' "$CI_WORKFLOW" && \
+    grep -q 'mise exec -- tuist install' "$CI_WORKFLOW"; then
     pass "PR workflow includes push and exact Xcode runner"
 else
     fail "PR workflow includes push and exact Xcode runner"
@@ -132,6 +133,7 @@ fi
 if [ -f "$FULL_WORKFLOW" ] && grep -Eq '^  schedule:' "$FULL_WORKFLOW" && \
     grep -Eq '^  workflow_dispatch:' "$FULL_WORKFLOW" && \
     grep -q 'runs-on: xcode-27' "$FULL_WORKFLOW" && \
+    grep -q 'mise exec -- tuist install' "$FULL_WORKFLOW" && \
     grep -q 'scripts/build-all.sh' "$FULL_WORKFLOW" && \
     grep -q 'scripts/test-affected.sh --all' "$FULL_WORKFLOW"; then
     pass "full regression supports schedule and manual dispatch"

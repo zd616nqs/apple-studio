@@ -358,6 +358,7 @@ check_resolved_toolchain() {
     [ "$build_actual" = "$(sed -n '1p' .xcode-build-version)" ] || gate_fail GATE-TOOLCHAIN-VERSION "Xcode build $build_actual 与 lock 不一致"
 
     if ! output=$(mise exec -- tuist generate --no-open 2>&1); then
+        printf '%s\n' "$output" | tail -20 >&2
         gate_fail GATE-REQUIRED-VERIFICATION "tuist generate 失败:$(printf '%s' "$output" | tail -1)"
     fi
 }
