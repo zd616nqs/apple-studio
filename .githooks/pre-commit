@@ -22,10 +22,9 @@ if ! scripts/repo-doctor.sh --staged; then
 fi
 
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
-case "$branch" in
-    main | detached | change/repo-*-* | change/modules-*-* | change/[a-z0-9]*-*-*) ;;
-    *) echo "⚠️  CHECK-BRANCH-NAME:$branch 不符合 change/<scope>-<verb-object>" >&2 ;;
-esac
+if ! scripts/validate-branch-name.sh "$branch"; then
+    echo "⚠️  CHECK-BRANCH-NAME:$branch 不符合已声明的 change/<scope>-<verb-object>" >&2
+fi
 
 if [ "$branch" != "${branch#change/repo-}" ]; then
     : # repo scope 可合法跨 App/Modules/工具边界。

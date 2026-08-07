@@ -16,10 +16,11 @@ fi
 
 has_break_glass=0
 has_non_empty_reason=0
-if grep -Eq '^Break-Glass:' "$message_file"; then
+trailers=$(git interpret-trailers --parse "$message_file" 2>/dev/null || true)
+if printf '%s\n' "$trailers" | grep -Eq '^Break-Glass:'; then
     has_break_glass=1
 fi
-if grep -Eq '^Break-Glass:[[:space:]]*[^[:space:]].*$' "$message_file"; then
+if printf '%s\n' "$trailers" | grep -Eq '^Break-Glass:[[:space:]]*[^[:space:]].*$'; then
     has_non_empty_reason=1
 fi
 

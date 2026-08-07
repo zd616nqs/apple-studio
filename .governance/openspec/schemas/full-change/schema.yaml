@@ -58,8 +58,9 @@ apply:
   requires: [tasks]
   tracks: tasks.md
   instruction: |
-    Read repository GOVERNANCE.md and all change artifacts. Follow
-    CONV-TEST-FIRST, work through pending tasks without changing accepted scope,
-    and mark each task complete with evidence. Run GATE-REQUIRED-VERIFICATION and
-    strict OpenSpec validation. Pause for a real unresolved decision; do not hide
-    it in implementation. Confirm migration and rollback readiness before archive.
+    Read repository GOVERNANCE.md and all change artifacts. Apply CONV-TEST-FIRST
+    and GATE-REQUIRED-VERIFICATION as defined there. Work through pending tasks
+    without changing accepted scope, mark each task complete with evidence, and
+    run strict OpenSpec validation. Pause for a real unresolved decision; do not
+    hide it in implementation. Confirm migration and rollback readiness before
+    archive.

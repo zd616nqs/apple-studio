@@ -28,16 +28,26 @@ verification_scope=none
 while IFS= read -r path; do
     [ -n "$path" ] || continue
     case "$path" in
+        Apps/*/openspec/* | Modules/openspec/*)
+            ;;
+        Apps/*/Resources/*)
+            if [ "$verification_scope" = none ]; then
+                verification_scope=affected
+            fi
+            ;;
+        Modules/*)
+            verification_scope=all
+            break
+            ;;
         *.md | docs/* | .github/* | .governance/* | .agents/* | .claude/* | \
-            .githooks/* | .tooling/* | .gitignore | .swift-format | \
-            Apps/*/openspec/* | Modules/openspec/*)
+            .githooks/* | .tooling/* | .gitignore | .swift-format)
             ;;
         Apps/*)
             if [ "$verification_scope" = none ]; then
                 verification_scope=affected
             fi
             ;;
-        Modules/* | Tuist/* | Tuist.swift | Workspace.swift | mise.toml | \
+        Tuist/* | Tuist.swift | Workspace.swift | mise.toml | \
             .xcode-version | .xcode-build-version | scripts/*)
             verification_scope=all
             break

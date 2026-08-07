@@ -9,6 +9,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 HOOK_SOURCE="$REPO_ROOT/.githooks/commit-msg"
 DOCTOR_SOURCE="$REPO_ROOT/scripts/repo-doctor.sh"
+BRANCH_VALIDATOR="$REPO_ROOT/scripts/validate-branch-name.sh"
 OPENSPEC_BIN="$(cd "$REPO_ROOT" && mise which openspec)"
 TEMP_ROOT=$(mktemp -d)
 trap 'rm -rf "$TEMP_ROOT"' EXIT
@@ -50,6 +51,12 @@ capture_commit_hook
 [ "$status" -eq 0 ] || fail "main break-glass should pass:$output"
 pass "non-empty main break-glass accepted"
 
+printf 'feat(repo): 伪造正文标记\n\nBreak-Glass: 这只是正文中的普通行\n后面仍有非 trailer 正文\n' > "$message_file"
+capture_commit_hook
+[ "$status" -ne 0 ] || fail "main body line must not count as break-glass trailer"
+printf '%s\n' "$output" | grep -q GATE-DIRECT-MAIN || fail "body-only break-glass missing Gate ID"
+pass "body line cannot bypass main gate"
+
 git -C "$commit_fixture" symbolic-ref HEAD refs/heads/change/repo-local-health
 printf 'not conventional\n' > "$message_file"
 capture_commit_hook
@@ -62,6 +69,17 @@ capture_commit_hook
 [ "$status" -eq 0 ] || fail "empty non-main trailer Check changed exit:$output"
 printf '%s\n' "$output" | grep -q CHECK-BREAK-GLASS-REASON || fail "empty trailer Check missing"
 pass "non-main break-glass reason stays advisory"
+
+if "$BRANCH_VALIDATOR" change/demonotes-update-copy; then
+    pass "declared App scope branch accepted"
+else
+    fail "declared App scope branch should be accepted"
+fi
+if "$BRANCH_VALIDATOR" change/notanapp-do-work; then
+    fail "unknown App scope branch should be rejected"
+else
+    pass "unknown App scope branch rejected"
+fi
 
 for deny_rule in \
     'Read(./Secrets/**)' 'Read(./**/Secrets/**)' 'Read(./**/*.secrets.*)' \
@@ -76,8 +94,10 @@ fixture="$TEMP_ROOT/doctor"
 mkdir -p "$fixture"
 git -C "$REPO_ROOT" archive HEAD | tar -x -C "$fixture"
 cp "$DOCTOR_SOURCE" "$fixture/scripts/repo-doctor.sh"
+cp "$BRANCH_VALIDATOR" "$fixture/scripts/validate-branch-name.sh"
 cp "$HOOK_SOURCE" "$fixture/.githooks/commit-msg"
-chmod +x "$fixture/scripts/repo-doctor.sh" "$fixture/.githooks/commit-msg"
+chmod +x "$fixture/scripts/repo-doctor.sh" "$fixture/scripts/validate-branch-name.sh" \
+    "$fixture/.githooks/commit-msg"
 git -C "$fixture" init -q
 git -C "$fixture" add -A
 git -C "$fixture" config core.hooksPath .wrong-hooks

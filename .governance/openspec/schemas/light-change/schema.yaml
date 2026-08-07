@@ -8,8 +8,7 @@ artifacts:
     template: spec.md
     instruction: |
       Create one delta spec per capability whose observable behavior changes.
-      This schema is only for a single App change that is reversible and has no
-      shared-layer, migration, privacy, security, or irreversible impact.
+      Confirm CHECK-CHANGE-TIER selected light-change before authoring artifacts.
 
       Preserve the exact path of an existing capability. New path segments use
       kebab-case. Use ADDED, MODIFIED, REMOVED, or RENAMED Requirements; include
@@ -25,8 +24,7 @@ apply:
   requires: [specs]
   instruction: |
     Read the repository GOVERNANCE.md, the App context, project declaration, and
-    this change's specs. Follow CONV-TEST-FIRST: observe the expected failing
-    behavior test before implementation and do not rewrite a confirmed assertion
-    unless the spec changes first. Implement only the declared delta, run the
-    GATE-REQUIRED-VERIFICATION checks, validate the change, and report rollback
-    readiness before archive. This workflow intentionally has no tasks artifact.
+    this change's specs. Apply CONV-TEST-FIRST and GATE-REQUIRED-VERIFICATION as
+    defined there. Implement only the declared delta, validate the change, and
+    report rollback readiness before archive. This workflow intentionally has no
+    tasks artifact.

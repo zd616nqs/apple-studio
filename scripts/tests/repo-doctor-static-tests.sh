@@ -7,6 +7,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOCTOR_SOURCE="$REPO_ROOT/scripts/repo-doctor.sh"
+BRANCH_VALIDATOR_SOURCE="$REPO_ROOT/scripts/validate-branch-name.sh"
 HOOK_SOURCE="$REPO_ROOT/.githooks/pre-commit"
 OPENSPEC_BIN="$(cd "$REPO_ROOT" && mise which openspec)"
 TEMP_ROOT=$(mktemp -d)
@@ -29,8 +30,10 @@ make_fixture() {
     mkdir -p "$fixture"
     git -C "$REPO_ROOT" archive HEAD | tar -x -C "$fixture"
     cp "$DOCTOR_SOURCE" "$fixture/scripts/repo-doctor.sh"
+    cp "$BRANCH_VALIDATOR_SOURCE" "$fixture/scripts/validate-branch-name.sh"
     cp "$HOOK_SOURCE" "$fixture/.githooks/pre-commit"
-    chmod +x "$fixture/scripts/repo-doctor.sh" "$fixture/.githooks/pre-commit"
+    chmod +x "$fixture/scripts/repo-doctor.sh" "$fixture/scripts/validate-branch-name.sh" \
+        "$fixture/.githooks/pre-commit"
     git -C "$fixture" init -q
     git -C "$fixture" config user.name "Synthetic Fixture"
     git -C "$fixture" config user.email "fixture@example.invalid"

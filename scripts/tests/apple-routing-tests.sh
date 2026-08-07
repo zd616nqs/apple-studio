@@ -62,6 +62,7 @@ previous=$(git -C "$FIXTURE" rev-parse HEAD)
 
 expect_route "documentation routes none" docs/onboarding.md false none
 expect_route "single App routes affected" Apps/Demo/Sources/App.swift true affected
+expect_route "App Markdown resource routes affected" Apps/Demo/Resources/help.md true affected
 expect_route "App spec routes none" Apps/Demo/openspec/specs/demo/spec.md false none
 expect_route "shared Module routes all" Modules/Studio/Sources/Studio.swift true all
 expect_route "Module spec routes none" Modules/openspec/specs/demo/spec.md false none

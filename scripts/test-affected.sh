@@ -149,10 +149,13 @@ trigger_all = None
 
 for f in changed:
     parts = f.split("/")
-    if f.endswith(".md") or "/openspec/" in f or f.startswith(".governance/"):
+    if "/openspec/" in f or f.startswith(".governance/"):
         continue
     if f.startswith("Apps/") and len(parts) > 1 and parts[1] in all_apps:
-        affected.add(parts[1])
+        if len(parts) >= 3 and parts[2] == "Resources":
+            affected.add(parts[1])
+        elif not f.endswith(".md"):
+            affected.add(parts[1])
     elif f.startswith("Modules/"):
         if len(parts) >= 3:
             affected_modules.add(parts[1])
@@ -171,7 +174,7 @@ for f in changed:
         )
     ):
         trigger_all = f
-    # 其余文件不影响 App 构建产物。
+    # 其余 Markdown/治理文件不影响 App 构建产物。
 
 if trigger_all:
     affected = set(all_apps)

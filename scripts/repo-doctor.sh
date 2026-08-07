@@ -324,10 +324,9 @@ report_checks() {
     fi
 
     branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
-    case "$branch" in
-        main | detached | change/repo-*-* | change/modules-*-* | change/[a-z0-9]*-*-*) ;;
-        *) check_report CHECK-BRANCH-NAME "$branch 不符合 change/<scope>-<verb-object>" ;;
-    esac
+    if ! scripts/validate-branch-name.sh "$branch"; then
+        check_report CHECK-BRANCH-NAME "$branch 不符合已声明的 change/<scope>-<verb-object>"
+    fi
 }
 
 check_resolved_toolchain() {
