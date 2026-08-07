@@ -149,6 +149,8 @@ trigger_all = None
 
 for f in changed:
     parts = f.split("/")
+    if f.endswith(".md") or "/openspec/" in f or f.startswith(".governance/"):
+        continue
     if f.startswith("Apps/") and len(parts) > 1 and parts[1] in all_apps:
         affected.add(parts[1])
     elif f.startswith("Modules/"):
