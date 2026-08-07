@@ -98,6 +98,26 @@ if command -v xcrun >/dev/null 2>&1 && xcrun --find swift-format >/dev/null 2>&1
 fi
 pass "positive fixture"
 
+make_fixture matching-app-scope
+git -C "$fixture" commit -qm baseline
+git -C "$fixture" switch -qc change/demonotes-update-copy
+printf '\nmatching scope\n' >> "$fixture/Apps/DemoNotes/CONTEXT.md"
+git -C "$fixture" add Apps/DemoNotes/CONTEXT.md
+capture_hook
+[ "$status" -eq 0 ] || fail "matching App scope changed hook exit:$output"
+printf '%s\n' "$output" | grep -q CHECK-BRANCH-NAME && fail "matching App scope reported mismatch:$output"
+pass "matching App scope stays clean"
+
+make_fixture mismatched-app-scope
+git -C "$fixture" commit -qm baseline
+git -C "$fixture" switch -qc change/demonotes-update-copy
+printf '\nmismatched scope\n' >> "$fixture/Apps/DemoPhotoMark/CONTEXT.md"
+git -C "$fixture" add Apps/DemoPhotoMark/CONTEXT.md
+capture_hook
+[ "$status" -eq 0 ] || fail "App scope Check changed hook exit:$output"
+printf '%s\n' "$output" | grep -q CHECK-BRANCH-NAME || fail "mismatched App scope missing Check:$output"
+pass "mismatched App scope reports Check"
+
 make_fixture branch-check
 git -C "$fixture" symbolic-ref HEAD refs/heads/topic
 capture_static

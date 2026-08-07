@@ -22,18 +22,42 @@ if ! scripts/repo-doctor.sh --staged; then
 fi
 
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo detached)
-if ! scripts/validate-branch-name.sh "$branch"; then
+if branch_scope=$(scripts/validate-branch-name.sh "$branch" --print-scope); then
+    :
+else
+    branch_scope=""
     echo "⚠️  CHECK-BRANCH-NAME:$branch 不符合已声明的 change/<scope>-<verb-object>" >&2
 fi
 
-if [ "$branch" != "${branch#change/repo-}" ]; then
+if [ "$branch_scope" = repo ]; then
     : # repo scope 可合法跨 App/Modules/工具边界。
 else
     modules_touched=$(printf '%s\n' "$staged" | grep '^Modules/' || true)
     apps_touched=$(printf '%s\n' "$staged" | grep '^Apps/' || true)
-    if [ -n "$modules_touched" ] && [ "$branch" = "${branch#change/modules-}" ]; then
+    if [ -n "$modules_touched" ] && [ "$branch_scope" != modules ]; then
         echo "⚠️  CHECK-BRANCH-NAME:$branch 的 scope 可能与 Modules/ 改动不匹配" >&2
     fi
+    case "$branch_scope" in
+        "" | main | detached | modules) ;;
+        *)
+            mismatched_app=""
+            while IFS= read -r path; do
+                [ -n "$path" ] || continue
+                app_name=${path#Apps/}
+                app_name=${app_name%%/*}
+                app_scope=$(printf '%s' "$app_name" | tr '[:upper:]' '[:lower:]')
+                if [ "$app_scope" != "$branch_scope" ]; then
+                    mismatched_app="$app_name"
+                    break
+                fi
+            done <<EOF
+$apps_touched
+EOF
+            if [ -n "$mismatched_app" ]; then
+                echo "⚠️  CHECK-BRANCH-NAME:$branch 的 scope 与 Apps/$mismatched_app/ 改动不匹配" >&2
+            fi
+            ;;
+    esac
     if [ -n "$modules_touched" ] && [ -n "$apps_touched" ]; then
         echo "⚠️  CHECK-CHANGE-TIER:同一提交触及 App 与共享层，请复核是否应升级 full-change/repo-change" >&2
     fi

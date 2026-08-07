@@ -81,6 +81,16 @@ else
     pass "unknown App scope branch rejected"
 fi
 
+branch_fixture="$TEMP_ROOT/branch-validator"
+mkdir -p "$branch_fixture/scripts" "$branch_fixture/Apps/Demo-Notes"
+cp "$BRANCH_VALIDATOR" "$branch_fixture/scripts/validate-branch-name.sh"
+chmod +x "$branch_fixture/scripts/validate-branch-name.sh"
+if "$branch_fixture/scripts/validate-branch-name.sh" change/demo-notes-update-copy; then
+    pass "hyphenated declared App scope branch accepted"
+else
+    fail "hyphenated declared App scope branch should be accepted"
+fi
+
 for deny_rule in \
     'Read(./Secrets/**)' 'Read(./**/Secrets/**)' 'Read(./**/*.secrets.*)' \
     'Edit(./Secrets/**)' 'Edit(./**/Secrets/**)' 'Edit(./**/*.secrets.*)' \
